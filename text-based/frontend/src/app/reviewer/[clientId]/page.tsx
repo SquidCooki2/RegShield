@@ -17,8 +17,7 @@ import {
   PieChart,
   RefreshCw,
   Sparkles,
-  ArrowLeft,
-  ExternalLink,
+  ClipboardList,
 } from 'lucide-react';
 
 export default function ClientReviewPage() {
@@ -37,14 +36,12 @@ export default function ClientReviewPage() {
 
   const loadData = useCallback(async () => {
     try {
-      // Fetch queue list
       const listRes = await fetch('/api/compliance/clients');
       if (listRes.ok) {
         const listData = await listRes.json();
         setAllClients(listData);
       }
 
-      // Fetch active client details
       if (clientId) {
         const detailRes = await fetch(`/api/compliance/clients/${clientId}`);
         if (detailRes.ok) {
@@ -137,7 +134,7 @@ export default function ClientReviewPage() {
                 )}
               </div>
 
-              {/* Client metadata pill chips */}
+              {/* Client metadata chips */}
               <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-cyan-400" />
@@ -146,7 +143,7 @@ export default function ClientReviewPage() {
                 <span className="text-slate-600">&bull;</span>
                 <span className="flex items-center gap-1.5">
                   <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                  Estimated AUM: <strong className="text-slate-200">${(client.estimatedAum || 0).toLocaleString()}</strong>
+                  Target AUM: <strong className="text-slate-200">${(client.estimatedAum || 0).toLocaleString()}</strong>
                 </span>
                 <span className="text-slate-600">&bull;</span>
                 <span className="flex items-center gap-1.5">
@@ -156,11 +153,11 @@ export default function ClientReviewPage() {
               </div>
             </div>
 
-            {/* Quick Uploaded Document Count */}
+            {/* Ingestion Mode Badge */}
             <div className="flex items-center gap-2 bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700/80 text-xs">
-              <FileText className="w-4 h-4 text-cyan-400" />
+              <ClipboardList className="w-4 h-4 text-cyan-400" />
               <span className="text-slate-300">
-                <strong>{client.documents?.length || 2}</strong> Raw Documents Ingested
+                <strong>Structured Intake Form</strong> (5 Sections Audited)
               </span>
             </div>
           </div>
@@ -179,7 +176,7 @@ export default function ClientReviewPage() {
 
         {/* Split Screen Stage */}
         <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          {/* Left Stage: Embedded Bedrock AI PDF / Dossier Viewer (7 Cols) */}
+          {/* Left Stage: Bedrock AI Compliance Dossier (7 Cols) */}
           <div className="xl:col-span-7 h-[750px] sticky top-6">
             <BedrockDossierViewer
               markdown={review.dossierMarkdown}
@@ -205,27 +202,29 @@ export default function ClientReviewPage() {
               onDecisionUpdated={handleDecisionUpdated}
             />
 
-            {/* Ingested Source Documents Info Card */}
+            {/* Ingested Form Summary Card */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Ingested Raw Documents (Amazon S3)</span>
+                <ClipboardList className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Form Submission Profile Details</span>
               </h4>
-              <div className="space-y-2">
-                {client.documents?.map((doc: any, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/70 border border-slate-700/70 text-xs"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <FileText className="w-4 h-4 text-cyan-400 shrink-0" />
-                      <span className="truncate text-slate-200 font-medium">{doc.originalName}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 shrink-0 ml-2">
-                      {(doc.size / 1024).toFixed(0)} KB
-                    </span>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
+                  <span className="text-slate-400 text-[10px] block">DOB / Age</span>
+                  <span className="text-slate-200 font-medium">{client.dateOfBirth || '1976-08-14'}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
+                  <span className="text-slate-400 text-[10px] block">Risk Tolerance</span>
+                  <span className="text-slate-200 font-medium">{client.riskTolerance || 'Moderate Growth'}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
+                  <span className="text-slate-400 text-[10px] block">Liquid Net Worth</span>
+                  <span className="text-slate-200 font-medium">{client.liquidNetWorth || '$1M - $5M'}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
+                  <span className="text-slate-400 text-[10px] block">Trusted Contact</span>
+                  <span className="text-slate-200 font-medium">{client.trustedContactName || 'None Designated'}</span>
+                </div>
               </div>
             </div>
           </div>

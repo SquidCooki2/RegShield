@@ -7,7 +7,6 @@ import {
   UseInterceptors,
   UploadedFiles,
   Res,
-  NotFoundException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -31,7 +30,7 @@ export class ComplianceController {
   }
 
   @Post('submit')
-  @UseInterceptors(FilesInterceptor('files', 10))
+  @UseInterceptors(FilesInterceptor('files', 5))
   async submitClient(
     @Body() body: any,
     @UploadedFiles() files: Express.Multer.File[]
@@ -40,11 +39,33 @@ export class ComplianceController {
       fullName: body.fullName || 'Unnamed Client',
       email: body.email || 'client@example.com',
       phone: body.phone,
+      dateOfBirth: body.dateOfBirth,
+      ssnLast4: body.ssnLast4,
+      citizenshipStatus: body.citizenshipStatus || 'US Citizen',
+      residentialAddress: body.residentialAddress,
       accountType: body.accountType || 'Individual',
+      coOwnerFullName: body.coOwnerFullName,
+      coOwnerRelationship: body.coOwnerRelationship,
+      trustName: body.trustName,
+      trustDate: body.trustDate,
+      targetPortfolio: body.targetPortfolio || 'Growth & Income (60/40)',
+      estimatedAum: body.estimatedAum ? Number(body.estimatedAum) : 750000,
+      annualIncome: body.annualIncome,
+      liquidNetWorth: body.liquidNetWorth,
+      riskTolerance: body.riskTolerance,
+      investmentObjective: body.investmentObjective,
+      liquidityTimeHorizon: body.liquidityTimeHorizon,
+      sourceOfWealth: body.sourceOfWealth,
+      transferringCustodian: body.transferringCustodian,
+      trustedContactName: body.trustedContactName,
+      trustedContactPhone: body.trustedContactPhone,
+      trustedContactRelationship: body.trustedContactRelationship,
+      formCrsAcknowledged: body.formCrsAcknowledged === 'true' || body.formCrsAcknowledged === true,
+      advPart2Delivered: body.advPart2Delivered === 'true' || body.advPart2Delivered === true,
+      privacyPolicyConsent: body.privacyPolicyConsent === 'true' || body.privacyPolicyConsent === true,
       advisorName: body.advisorName || 'Independent Advisor',
       advisorFirm: body.advisorFirm,
-      targetPortfolio: body.targetPortfolio || 'Balanced Growth (60/40)',
-      estimatedAum: body.estimatedAum ? Number(body.estimatedAum) : 500000,
+      advisorCrd: body.advisorCrd,
       notes: body.notes,
     };
 
@@ -71,9 +92,8 @@ export class ComplianceController {
   serveLocalDocument(@Param('filename') filename: string, @Res() res: Response) {
     const filePath = path.resolve(process.cwd(), 'uploads', filename);
     if (!fs.existsSync(filePath)) {
-      // Return synthetic PDF or text placeholder if not physically saved
       res.setHeader('Content-Type', 'text/plain');
-      return res.send(`RegShield Compliance Document Archive: ${filename}`);
+      return res.send(`RegShield Compliance Archive: ${filename}`);
     }
     return res.sendFile(filePath);
   }

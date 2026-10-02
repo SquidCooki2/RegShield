@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import * as pdfParse from 'pdf-parse';
 import { S3Service } from '../aws-s3/s3.service';
 import { BedrockService } from '../aws-bedrock/bedrock.service';
 import { ClientEntity, ReviewEntity, DocumentMetadata } from './domain/entities/client.entity';
@@ -11,7 +10,6 @@ import { CreateClientSubmissionDto, DecisionDto, RemediationRequestDto } from '.
 export class ComplianceService {
   private readonly logger = new Logger(ComplianceService.name);
 
-  // In-memory DDD aggregate store for the Hackathon MVP
   private clients: Map<string, ClientEntity> = new Map();
   private reviews: Map<string, ReviewEntity> = new Map();
 
@@ -23,37 +21,43 @@ export class ComplianceService {
   }
 
   private seedInitialData() {
-    // Seed sample clients for immediate demo readiness
     const sampleId1 = 'demo-client-john-doe';
     const client1: ClientEntity = {
       id: sampleId1,
       fullName: 'Johnathan Doe',
-      email: 'john.doe@example.com',
+      email: 'john.doe@californiawealth.com',
       phone: '+1 (555) 234-5678',
+      dateOfBirth: '1976-08-14',
+      ssnLast4: '8821',
+      citizenshipStatus: 'US Citizen',
+      residentialAddress: '450 Newport Center Dr, Newport Beach, CA 92660',
       accountType: 'Individual',
-      advisorName: 'Sarah Jenkins',
-      advisorFirm: 'Apex Wealth Advisory',
       targetPortfolio: 'Growth & Income (60/40 Equity/Fixed)',
       estimatedAum: 1250000,
-      notes: 'Transitioning retirement accounts from Merrill Lynch. Fast-track requested.',
+      annualIncome: '$250,000 - $500,000',
+      liquidNetWorth: '$1,000,000 - $5,000,000',
+      riskTolerance: 'Moderate Growth',
+      investmentObjective: 'Long-term Capital Appreciation & Tax-Advantaged Income',
+      liquidityTimeHorizon: '7 - 10 Years',
+      sourceOfWealth: 'Executive Compensation & Investment Liquidity',
+      transferringCustodian: 'Merrill Lynch Wealth Management',
+      trustedContactName: 'Mary Doe',
+      trustedContactPhone: '+1 (555) 234-9988',
+      trustedContactRelationship: 'Spouse',
+      formCrsAcknowledged: true,
+      advPart2Delivered: true,
+      privacyPolicyConsent: true,
+      advisorName: 'Sarah Jenkins, CFP',
+      advisorFirm: 'Apex Wealth Advisory',
+      advisorCrd: 'CRD# 6842109',
+      notes: 'Transitioning retirement assets from Merrill Lynch. Fast-track requested.',
       documents: [
         {
           id: 'doc-1',
-          originalName: 'Merrill_Lynch_Brokerage_Statement.pdf',
+          originalName: 'Client_Intake_Verification_Form.pdf',
           mimeType: 'application/pdf',
-          size: 1048576,
-          s3Url: '/api/compliance/documents/sample_statement.pdf',
+          size: 245000,
           uploadedAt: new Date(Date.now() - 3600000 * 2),
-          extractedTextLength: 4200,
-        },
-        {
-          id: 'doc-2',
-          originalName: 'Drivers_License_CA_JohnDoe.pdf',
-          mimeType: 'application/pdf',
-          size: 524288,
-          s3Url: '/api/compliance/documents/sample_id.pdf',
-          uploadedAt: new Date(Date.now() - 3600000 * 2),
-          extractedTextLength: 1200,
         },
       ],
       createdAt: new Date(Date.now() - 3600000 * 2),
@@ -66,73 +70,75 @@ export class ComplianceService {
       overallStatus: ComplianceStatus.GREEN,
       onboardingStatus: OnboardingStatus.PENDING_REVIEW,
       registrationMismatch: false,
-      registrationDetails: 'Perfect registration match across California Real ID and Merrill Lynch ACAT transfer statement.',
-      portfolioRiskSummary: 'Transitioning $1.25M into Growth & Income strategy. Low beta, compliant with risk capacity.',
-      sourceOfFundsSummary: 'Liquid funds originating from Merrill Lynch Cash & Security positions.',
+      registrationDetails: 'Structured form intake matches all regulatory suitability benchmarks.',
+      portfolioRiskSummary: 'Transitioning $1.25M into Growth & Income strategy. Suitability envelope verified.',
+      sourceOfFundsSummary: 'Liquid funds originating from Merrill Lynch ACAT transfer.',
       bucketScores: [
         {
           bucket: 'AML_IDENTITY',
           title: 'Bucket A: Identity & AML',
           status: ComplianceStatus.GREEN,
-          summary: 'Government Issued ID verified. OFAC/PEP negative screen.',
-          findings: ['California DMV Driver License matches legal name.', 'CIP Identity Score: 98/100.', 'No adverse media or watch-list matches.']
+          summary: 'CIP verification complete. SSN, DOB, and residential address verified with 0 OFAC hits.',
+          findings: ['US Citizen status confirmed.', 'Identity CIP Score: 99/100.', 'OFAC & PEP screening: Clear.']
         },
         {
           bucket: 'REG_BI_SUITABILITY',
           title: 'Bucket B: Reg BI & Suitability',
           status: ComplianceStatus.GREEN,
-          summary: 'Portfolio transition lowers client all-in fee by 45 bps.',
-          findings: ['Product replacement analysis passed.', 'Liquidity needs (>5 years) align with proposed asset blend.']
+          summary: 'Individual ownership registration validated. Moderate risk tolerance aligns with 60/40 blend.',
+          findings: ['Annual Income ($250k+) and Liquid Net Worth ($1M+) confirm suitability.', 'Estimated fee savings: 38 bps vs retail broker.']
         },
         {
           bucket: 'REQUIRED_DISCLOSURES',
           title: 'Bucket C: Required Disclosures',
           status: ComplianceStatus.GREEN,
-          summary: 'Form CRS acknowledged electronically with valid timestamp.',
-          findings: ['Form CRS Relationship Summary delivered.', 'LPL Disclosures signed via DocuSign.']
+          summary: 'Form CRS and ADV Part 2 electronic sign-offs complete with timestamp.',
+          findings: ['Form CRS Relationship Summary acknowledged.', 'Fee schedule disclosed under SEC Rule 17a-14.']
         },
         {
           bucket: 'VULNERABLE_ADULT',
           title: 'Bucket D: Vulnerable Adult Protection',
           status: ComplianceStatus.GREEN,
-          summary: 'Client age 48. Trusted Contact Person designated on file.',
-          findings: ['Primary trusted contact designated: Mary Doe (Spouse).', 'FINRA 2165 protocol recorded.']
+          summary: 'Client age 48. Trusted Contact Person recorded on master profile.',
+          findings: ['Trusted Contact designated: Mary Doe (Spouse).', 'FINRA Rule 2165 authorization granted.']
         }
       ],
       flaggedAnomalies: [],
       dossierMarkdown: `# RegShield Compliance Synthesis Dossier
-**Evaluation:** Real-time Bedrock AI Synthesis (Claude 3 Sonnet)  
+**Generated by AWS Bedrock AI Compliance Engine (Claude 3 Sonnet)**  
+**Intake Mode:** Structured Advisor Compliance Portal  
 **Client:** Johnathan Doe | **Account Type:** Individual Taxable  
-**Advisor:** Sarah Jenkins (Apex Wealth Advisory)  
-**Status:** **CLEARED FOR REVIEW**
+**Advisor:** Sarah Jenkins, CFP (Apex Wealth Advisory &bull; CRD# 6842109)  
 
 ---
 
-### 1. Executive Summary
-- **Risk Score:** 99/100 (Optimal Compliance)
-- **Transferring Institution:** Merrill Lynch Wealth Management
-- **Total Asset Value:** **$1,250,000.00**
-- **Recommendation:** Back-office fast-track approval eligible.
+### 1. Executive Compliance Audit Summary
+- **Overall Determination:** **✅ CLEARED FOR IMMEDIATE APPROVAL**
+- **Synthetic Suitability Score:** 99 / 100
+- **Source Custodian:** Merrill Lynch Wealth Management
+- **Intake Asset Volume:** **$1,250,000.00**
 
 ---
 
-### 2. Document & Entity Extraction
-| Field | Driver's License | Competitor Statement | System Record | Match |
-| :--- | :--- | :--- | :--- | :--- |
-| **Full Legal Name** | Johnathan Doe | Johnathan Doe | Johnathan Doe | ✅ PASS |
-| **Address** | 450 Newport Center Dr, Newport Beach, CA | 450 Newport Center Dr, Newport Beach, CA | 450 Newport Center Dr, Newport Beach, CA | ✅ PASS |
-| **Account Registration** | Individual | Individual Brokerage | Individual | ✅ PASS |
+### 2. Structured Intake Form Audit Grid
+| Form Section | Data Provided | Regulatory Standard | Audit Result |
+| :--- | :--- | :--- | :--- |
+| **Legal Identity & CIP** | Johnathan Doe (DOB: 1976-08-14) | USA PATRIOT Act / CIP | ✅ VERIFIED |
+| **Tax ID / SSN** | ***-**-8821 | IRS TIN / LexisNexis | ✅ VERIFIED |
+| **Account Tenancy** | Individual Taxable | FINRA Rule 4512 | ✅ CONFIRMED |
+| **Suitability & Reg BI** | Moderate Growth / 60-40 Equity-Fixed | SEC Reg BI / FINRA 2111 | ✅ COMPLIANT |
+| **Form CRS Acknowledgment** | Signed Electronically | SEC Form CRS Rule 17a-14 | ✅ VERIFIED |
+| **Trusted Contact (TCP)** | Mary Doe (Spouse) | FINRA Rule 2165 | ✅ SATISFIED |
 
 ---
 
-### 3. Regulatory Review Buckets
-- **Bucket A (Identity & AML):** State ID verified, SSN checked against CIP ledger.
-- **Bucket B (Reg BI & Suitability):** Form CRS delivered; lower expense ratio achieved.
-- **Bucket C (Required Disclosures):** Fee schedules and conflict disclosures signed.
-- **Bucket D (Vulnerable Adult Protection):** Trusted contact recorded.
+### 3. Reg BI Suitability & Risk Analysis
+- **Proposed Allocation:** Growth & Income (60/40 Equity/Fixed)
+- **Risk Capacity:** Annual Income ($250,000 - $500,000) and Liquid Net Worth ($1,000,000 - $5,000,000) substantiate investment profile.
+- **Liquidity Horizon:** 7 - 10 Years allows for core advisory model positioning with projected **38 bps** fee reduction.
 
 ---
-*Ready for 1-Click Back-Office Approval.*
+*Ready for 1-Click Fast-Track Back-Office Approval.*
 `,
       createdAt: new Date(Date.now() - 3600000 * 2),
       updatedAt: new Date(Date.now() - 3600000 * 2),
@@ -144,23 +150,29 @@ export class ComplianceService {
       fullName: 'Eleanor Vance',
       email: 'eleanor.vance@example.org',
       phone: '+1 (555) 891-2345',
+      dateOfBirth: '1952-03-22',
+      ssnLast4: '3419',
+      citizenshipStatus: 'US Citizen',
+      residentialAddress: '120 Ocean View Ave, Carmel, CA 93921',
       accountType: 'Joint',
-      advisorName: 'Marcus Reynolds',
-      advisorFirm: 'Pacific Horizon Financial',
       targetPortfolio: 'Capital Preservation & Dividend Income',
       estimatedAum: 875000,
-      notes: 'Transferred statement lists Individual, but client selected Joint.',
-      documents: [
-        {
-          id: 'doc-3',
-          originalName: 'Schwab_Statement_Eleanor_Vance.pdf',
-          mimeType: 'application/pdf',
-          size: 891234,
-          s3Url: '/api/compliance/documents/schwab_statement.pdf',
-          uploadedAt: new Date(Date.now() - 3600000 * 5),
-          extractedTextLength: 3100,
-        }
-      ],
+      annualIncome: '$100,000 - $250,000',
+      liquidNetWorth: '$1,000,000 - $5,000,000',
+      riskTolerance: 'Conservative / Income',
+      investmentObjective: 'Capital Preservation & Current Income',
+      liquidityTimeHorizon: '3 - 5 Years',
+      sourceOfWealth: 'Retirement Assets',
+      transferringCustodian: 'Charles Schwab & Co.',
+      trustedContactName: '',
+      formCrsAcknowledged: true,
+      advPart2Delivered: true,
+      privacyPolicyConsent: true,
+      advisorName: 'Marcus Reynolds',
+      advisorFirm: 'Pacific Horizon Financial',
+      advisorCrd: 'CRD# 5129840',
+      notes: 'Demo test case: Joint account selected without co-owner details & Senior investor TCP missing.',
+      documents: [],
       createdAt: new Date(Date.now() - 3600000 * 5),
       updatedAt: new Date(Date.now() - 3600000 * 5),
     };
@@ -171,23 +183,23 @@ export class ComplianceService {
       overallStatus: ComplianceStatus.YELLOW,
       onboardingStatus: OnboardingStatus.ACTION_REQUIRED,
       registrationMismatch: true,
-      registrationDetails: 'Application specifies Joint Account, but uploaded Charles Schwab account statement reflects Individual ownership.',
-      portfolioRiskSummary: 'Conservative allocation suitable for retirement phase.',
+      registrationDetails: 'Form intake specifies Joint Account, but co-owner identification was omitted.',
+      portfolioRiskSummary: 'Conservative portfolio strategy appropriate for client horizon.',
       sourceOfFundsSummary: 'Charles Schwab ACAT transfer.',
       bucketScores: [
         {
           bucket: 'AML_IDENTITY',
           title: 'Bucket A: Identity & AML',
           status: ComplianceStatus.GREEN,
-          summary: 'ID Verified for Primary Applicant.',
-          findings: ['Valid US Passport on file.', 'Zero OFAC sanctions hits.']
+          summary: 'Primary applicant CIP validated. 0 OFAC sanctions hits.',
+          findings: ['Primary SSN verified.', 'Clear OFAC and watch list record.']
         },
         {
           bucket: 'REG_BI_SUITABILITY',
           title: 'Bucket B: Reg BI & Suitability',
           status: ComplianceStatus.YELLOW,
-          summary: 'Registration discrepancy detected between statement and application form.',
-          findings: ['Uploaded statement indicates Individual ownership.', 'Onboarding application marked Joint with WROS.', 'Co-owner signature form required.']
+          summary: 'Joint tenancy selected but secondary co-owner information missing.',
+          findings: ['Co-owner legal name and SSN required for Joint WROS account.']
         },
         {
           bucket: 'REQUIRED_DISCLOSURES',
@@ -200,40 +212,42 @@ export class ComplianceService {
           bucket: 'VULNERABLE_ADULT',
           title: 'Bucket D: Vulnerable Adult Protection',
           status: ComplianceStatus.YELLOW,
-          summary: 'Client age is 72. Trusted Contact form pending secondary sign-off.',
-          findings: ['Senior investor designation triggered FINRA 2165 checklist.', 'Trusted contact person authorization form sent to client.']
+          summary: 'Client age 72 (Senior Investor). Trusted Contact Person designation is required.',
+          findings: ['FINRA Rule 2165 prompt active for senior account holder.']
         }
       ],
       flaggedAnomalies: [
-        'Registration Mismatch: Charles Schwab account statement is Single/Individual, whereas onboarding intake specifies Joint account.'
+        'Registration Mismatch: Joint Tenancy selected on intake form, but co-owner information was omitted.',
+        'Senior Investor Protection: Age 72 requires Trusted Contact Person (TCP) form.'
       ],
       dossierMarkdown: `# RegShield Compliance Synthesis Dossier
-**Evaluation:** Real-time Bedrock AI Synthesis (Claude 3 Sonnet)  
+**Generated by AWS Bedrock AI Compliance Engine (Claude 3 Sonnet)**  
+**Intake Mode:** Structured Advisor Compliance Portal  
 **Client:** Eleanor Vance | **Account Type:** Joint (WROS)  
-**Advisor:** Marcus Reynolds (Pacific Horizon Financial)  
-**Status:** **ACTION REQUIRED / MANUAL CLARIFICATION NEEDED**
+**Advisor:** Marcus Reynolds (Pacific Horizon Financial &bull; CRD# 5129840)  
 
 ---
 
-### 1. Executive Summary & Alert
-- **Risk Score:** 84/100 (**Review Action Required**)
-- **Anomaly Highlight:** The client application specifies a **Joint Account**, but the uploaded statement from **Charles Schwab** is registered solely as an **Individual Account**.
-- **Recommended Remediation:** Trigger automated SMS/Email clarification for co-owner authorization.
+### 1. Executive Compliance Audit Summary
+- **Overall Determination:** **⚠️ ACTION REQUIRED / CLARIFICATION PENDING**
+- **Synthetic Suitability Score:** 82 / 100
+- **Source Custodian:** Charles Schwab & Co.
+- **Intake Asset Volume:** **$875,000.00**
 
 ---
 
-### 2. Entity & Registration Verification
-| Field | Schwab Statement | Intake Form | Audit Status |
+### 2. Structured Intake Form Audit Grid
+| Form Section | Data Provided | Regulatory Standard | Audit Result |
 | :--- | :--- | :--- | :--- |
-| **Primary Account Holder** | Eleanor Vance | Eleanor Vance | ✅ MATCH |
-| **Account Ownership** | Individual Ownership | Joint Tenants w/ Rights of Survivorship | ⚠️ **DISCREPANCY DETECTED** |
-| **Secondary Signer** | None Listed | Arthur Vance (Spouse) | ⚠️ Missing Documentation |
+| **Legal Identity & CIP** | Eleanor Vance (DOB: 1952-03-22) | USA PATRIOT Act / CIP | ✅ VERIFIED |
+| **Account Tenancy** | Joint Account | FINRA Rule 4512 | ⚠️ **CO-OWNER INFO MISSING** |
+| **Senior Protection** | Age 72 | FINRA Rule 2165 | ⚠️ **TRUSTED CONTACT REQUIRED** |
+| **Form CRS** | Signed Electronically | SEC Form CRS Rule 17a-14 | ✅ VERIFIED |
 
 ---
 
-### 3. Source of Funds
-- **Liquid Portfolio Total:** $875,000.00
-- **Target Allocation:** Capital Preservation & Dividend Income
+### 3. Action Center Recommendation
+- Dispatch automated clarification to advisor Marcus Reynolds requesting co-owner signature authorization and Trusted Contact designation.
 `,
       createdAt: new Date(Date.now() - 3600000 * 5),
       updatedAt: new Date(Date.now() - 3600000 * 5),
@@ -254,7 +268,6 @@ export class ComplianceService {
         list.push({ client, review });
       }
     }
-    // Return newest first
     return list.sort((a, b) => b.client.createdAt.getTime() - a.client.createdAt.getTime());
   }
 
@@ -269,45 +282,32 @@ export class ComplianceService {
 
   async createSubmission(
     dto: CreateClientSubmissionDto,
-    files: Express.Multer.File[]
+    files: Express.Multer.File[] = []
   ): Promise<{ client: ClientEntity; review: ReviewEntity }> {
     const clientId = `client-${Date.now()}`;
     const uploadedDocs: DocumentMetadata[] = [];
     const extractedTexts: Array<{ fileName: string; text: string }> = [];
 
-    for (const file of files) {
-      const docId = `doc-${uuidv4().substring(0, 8)}`;
-      let extractedText = '';
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const docId = `doc-${uuidv4().substring(0, 8)}`;
+        const uploadResult = await this.s3Service.uploadFile(file, `clients/${clientId}`);
 
-      if (file.mimetype === 'application/pdf' || file.originalname.endsWith('.pdf')) {
-        try {
-          const parsed = await (pdfParse as any)(file.buffer);
-          extractedText = parsed.text || '';
-        } catch (e) {
-          this.logger.warn(`Could not parse text from PDF ${file.originalname}: ${e.message}`);
-          extractedText = `PDF document uploaded: ${file.originalname}, size: ${file.size} bytes.`;
-        }
-      } else {
-        extractedText = file.buffer.toString('utf-8');
+        uploadedDocs.push({
+          id: docId,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          s3Key: uploadResult.key,
+          s3Url: uploadResult.url,
+          uploadedAt: new Date(),
+        });
+
+        extractedTexts.push({
+          fileName: file.originalname,
+          text: file.buffer ? file.buffer.toString('utf-8').slice(0, 5000) : '',
+        });
       }
-
-      const uploadResult = await this.s3Service.uploadFile(file, `clients/${clientId}`);
-
-      uploadedDocs.push({
-        id: docId,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
-        s3Key: uploadResult.key,
-        s3Url: uploadResult.url,
-        uploadedAt: new Date(),
-        extractedTextLength: extractedText.length,
-      });
-
-      extractedTexts.push({
-        fileName: file.originalname,
-        text: extractedText,
-      });
     }
 
     const client: ClientEntity = {
@@ -315,33 +315,43 @@ export class ComplianceService {
       fullName: dto.fullName,
       email: dto.email,
       phone: dto.phone,
+      dateOfBirth: dto.dateOfBirth,
+      ssnLast4: dto.ssnLast4,
+      citizenshipStatus: dto.citizenshipStatus || 'US Citizen',
+      residentialAddress: dto.residentialAddress,
       accountType: dto.accountType,
+      coOwnerFullName: dto.coOwnerFullName,
+      coOwnerRelationship: dto.coOwnerRelationship,
+      trustName: dto.trustName,
+      trustDate: dto.trustDate,
+      targetPortfolio: dto.targetPortfolio,
+      estimatedAum: dto.estimatedAum ? Number(dto.estimatedAum) : 750000,
+      annualIncome: dto.annualIncome,
+      liquidNetWorth: dto.liquidNetWorth,
+      riskTolerance: dto.riskTolerance,
+      investmentObjective: dto.investmentObjective,
+      liquidityTimeHorizon: dto.liquidityTimeHorizon,
+      sourceOfWealth: dto.sourceOfWealth,
+      transferringCustodian: dto.transferringCustodian,
+      trustedContactName: dto.trustedContactName,
+      trustedContactPhone: dto.trustedContactPhone,
+      trustedContactRelationship: dto.trustedContactRelationship,
+      formCrsAcknowledged: dto.formCrsAcknowledged !== false,
+      advPart2Delivered: dto.advPart2Delivered !== false,
+      privacyPolicyConsent: dto.privacyPolicyConsent !== false,
       advisorName: dto.advisorName,
       advisorFirm: dto.advisorFirm || 'Independent Registered Advisor',
-      targetPortfolio: dto.targetPortfolio,
-      estimatedAum: dto.estimatedAum || 500000,
+      advisorCrd: dto.advisorCrd || 'CRD# 7421890',
       notes: dto.notes,
       documents: uploadedDocs,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    // AWS Bedrock AI Compliance synthesis
-    const bedrockResult = await this.bedrockService.analyzeDocuments(
-      {
-        fullName: client.fullName,
-        accountType: client.accountType,
-        targetPortfolio: client.targetPortfolio,
-        estimatedAum: client.estimatedAum,
-        advisorName: client.advisorName,
-      },
-      extractedTexts
-    );
+    const bedrockResult = await this.bedrockService.analyzeSubmission(client, extractedTexts);
 
     const initialOnboardingStatus =
-      bedrockResult.overallStatus === ComplianceStatus.RED
-        ? OnboardingStatus.ACTION_REQUIRED
-        : bedrockResult.overallStatus === ComplianceStatus.YELLOW
+      bedrockResult.overallStatus === ComplianceStatus.RED || bedrockResult.overallStatus === ComplianceStatus.YELLOW
         ? OnboardingStatus.ACTION_REQUIRED
         : OnboardingStatus.PENDING_REVIEW;
 
@@ -412,8 +422,6 @@ export class ComplianceService {
     review.remediationNotes.push(logEntry);
     review.onboardingStatus = OnboardingStatus.ACTION_REQUIRED;
     review.updatedAt = new Date();
-
-    this.logger.log(`Remediation dispatched for ${client.fullName}: ${dto.message} via ${dto.channel}`);
 
     return {
       success: true,

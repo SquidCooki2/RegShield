@@ -16,12 +16,45 @@ export interface ClientEntity {
   fullName: string;
   email: string;
   phone?: string;
+  dateOfBirth?: string;
+  ssnLast4?: string;
+  citizenshipStatus?: string;
+  residentialAddress?: string;
+
+  // Account Type
   accountType: 'Individual' | 'Joint' | 'Trust' | 'Entity' | 'IRA';
-  advisorName: string;
-  advisorFirm?: string;
+  coOwnerFullName?: string;
+  coOwnerRelationship?: string;
+  trustName?: string;
+  trustDate?: string;
+
+  // Suitability / Reg BI
   targetPortfolio: string;
   estimatedAum: number;
+  annualIncome?: string;
+  liquidNetWorth?: string;
+  riskTolerance?: string;
+  investmentObjective?: string;
+  liquidityTimeHorizon?: string;
+  sourceOfWealth?: string;
+  transferringCustodian?: string;
+
+  // Senior / Trusted Contact
+  trustedContactName?: string;
+  trustedContactPhone?: string;
+  trustedContactRelationship?: string;
+
+  // Disclosures
+  formCrsAcknowledged: boolean;
+  advPart2Delivered: boolean;
+  privacyPolicyConsent: boolean;
+
+  // Advisor Info
+  advisorName: string;
+  advisorFirm?: string;
+  advisorCrd?: string;
   notes?: string;
+
   documents: DocumentMetadata[];
   createdAt: Date;
   updatedAt: Date;
