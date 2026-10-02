@@ -1,0 +1,12 @@
+{
+  "name": "transcribe",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:client": "bun run --filter @transcribe/client dev",
+    "dev:server": "bun run --filter @transcribe/server dev",
+    "build": "bun run --filter '*' build",
+    "lint": "bun run --filter @transcribe/client lint"
+  }
+}
