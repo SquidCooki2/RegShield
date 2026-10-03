@@ -1,5 +1,6 @@
 import express from 'express'
 import { api, apiErrors } from './api'
+import { attachLive } from './live'
 
 const port = Number(process.env.PORT ?? 3000)
 
@@ -18,6 +19,7 @@ app.use((_req, res) => {
 
 app.use(apiErrors)
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`)
 })
+attachLive(server)

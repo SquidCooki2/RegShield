@@ -1,4 +1,4 @@
-import type { SeverityLevel } from "@/types";
+import type { OverallRisk } from "@transcribe/shared";
 
 /** 75 -> "01:15". Minutes keep counting past 59 for long meetings. */
 export const formatTime = (seconds: number) => {
@@ -9,16 +9,7 @@ export const formatTime = (seconds: number) => {
 };
 
 /** Chakra colorPalette for a risk level, so light/dark are handled by the theme. */
-export const riskPalette = (level?: SeverityLevel) => {
-  switch (level) {
-    case "CRITICAL":
-    case "HIGH":
-      return "red";
-    case "MEDIUM":
-      return "orange";
-    default:
-      return "yellow";
-  }
-};
+export const riskPalette = (level: OverallRisk) =>
+  ({ high: "red", medium: "orange", low: "yellow", none: "green" })[level];
 
 export const stripExtension = (filename: string) => filename.replace(/\.[^/.]+$/, "");

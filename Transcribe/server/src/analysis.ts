@@ -19,6 +19,15 @@ const modelIds: Record<AnalysisMode, string> = {
 
 const rules = await Bun.file(new URL('../rules/rules.md', import.meta.url)).text()
 
+// Each rule's "- **Nudge:**" line, keyed by rule ID. Live mode shows these to the advisor.
+export const ruleNudges: Record<string, string> = Object.fromEntries(
+  rules.split(/^## /m).flatMap((section) => {
+    const id = section.match(/^(R\d+):/)?.[1]
+    const nudge = section.match(/^- \*\*Nudge:\*\* (.+)$/m)?.[1]
+    return id && nudge ? [[id, nudge.trim()]] : []
+  }),
+)
+
 // What the model fills in. quoteVerified is left out: our code sets it, never the model.
 const ModelOutput = z.object({
   speakerRoles: z.record(z.string(), SpeakerRole).describe('Map each speaker label to a role, e.g. {"spk_0": "advisor"}'),

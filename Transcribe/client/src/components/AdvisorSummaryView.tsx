@@ -17,10 +17,13 @@ import {
 import { LuCheck, LuCopy, LuFileCheck, LuSend, LuX } from "react-icons/lu";
 import { toaster } from "@/components/ui/toaster";
 import { PanelHeader } from "./PanelHeader";
-import type { ComplianceAuditReport } from "@/types";
+import type { UserProfile } from "@/types";
+import type { ReviewRecord } from "@transcribe/shared";
+import { sendJson } from "@/lib/api";
+import { riskPalette } from "@/lib/format";
 
-// Assumes POST /api/crm/sync/:meetingId accepts the payload built in buildPayload().
-// Render with key={report?.meetingId} so local edits reset when a new meeting arrives.
+// Sending saves edits with PATCH /api/meetings/:id/summary, then POST /api/meetings/:id/send-to-crm
+// (a mock CRM on the server). Render with key={review?.meetingId} so local edits reset per meeting.
 
 interface ActionItem {
   id: string;
@@ -28,14 +31,18 @@ interface ActionItem {
 }
 type SyncState = "idle" | "sending" | "sent";
 
-export const AdvisorSummaryView: React.FC<{ report: ComplianceAuditReport | null }> = ({ report }) => {
-  const summary = report?.crmSummary;
-  const [objectives, setObjectives] = useState(summary?.clientObjectives ?? "");
+interface Props {
+  review: ReviewRecord | null;
+  user: UserProfile;
+}
+
+export const AdvisorSummaryView: React.FC<Props> = ({ review, user }) => {
+  const [summary, setSummary] = useState(review?.summary ?? "");
   const [items, setItems] = useState<ActionItem[]>(() =>
-    (summary?.actionItems ?? []).map((text) => ({ id: crypto.randomUUID(), text }))
+    (review?.actionItems ?? []).map((text) => ({ id: crypto.randomUUID(), text }))
   );
   const [draft, setDraft] = useState("");
-  const [sync, setSync] = useState<SyncState>("idle");
+  const [sync, setSync] = useState<SyncState>(review?.summaryStatus === "sent_to_crm" ? "sent" : "idle");
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<number | undefined>(undefined);
 
@@ -49,39 +56,32 @@ export const AdvisorSummaryView: React.FC<{ report: ComplianceAuditReport | null
   };
 
   const buildPayload = () => ({
-    meetingId: report?.meetingId,
-    objectives,
+    meetingId: review?.meetingId,
+    summary,
     actionItems: items.map((i) => i.text),
-    productsDiscussed: summary?.productsDiscussed ?? [],
-    disclosuresVerified: summary?.disclosuresVerified ?? false,
-    // Reported from the audit, not asserted by the client.
-    complianceReview: {
-      riskLevel: report?.overallRiskLevel,
-      flagCount: report?.flags.length ?? 0,
-    },
   });
 
   const sendToCrm = async () => {
-    if (!report) return;
+    if (!review) return;
     setSync("sending");
     try {
-      const res = await fetch(`/api/crm/sync/${report.meetingId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
-      if (!res.ok) throw new Error(`CRM sync failed (${res.status})`);
+      const { meetingId: _, ...edits } = buildPayload();
+      const edited =
+        edits.summary !== (review.summary ?? "") ||
+        JSON.stringify(edits.actionItems) !== JSON.stringify(review.actionItems);
+      if (edited) await sendJson(`/api/meetings/${review.meetingId}/summary`, "PATCH", { actor: user.name, ...edits });
+      await sendJson(`/api/meetings/${review.meetingId}/send-to-crm`, "POST", { actor: user.name });
       setSync("sent");
       toaster.create({
         title: "Sent to CRM",
-        description: `Meeting ${report.meetingId} was logged to ClientWorks.`,
+        description: `"${review.title}" was logged to the CRM.`,
         type: "success",
       });
     } catch (err) {
       setSync("idle");
       toaster.create({
         title: "Not sent to CRM",
-        description: `${(err as Error).message}. Nothing was logged. Try again.`,
+        description: `${(err as Error).message} Try again.`,
         type: "error",
       });
     }
@@ -102,20 +102,20 @@ export const AdvisorSummaryView: React.FC<{ report: ComplianceAuditReport | null
     }
   };
 
-  if (!report || !summary) {
+  if (!review) {
     return (
       <Card.Root variant="outline" h="full">
         <Card.Header>
           <PanelHeader icon={<LuFileCheck size={20} />} title="CRM summary" subtitle="Ready after the meeting audit" />
         </Card.Header>
-        <Card.Body justify="center" align="center" textAlign="center" color="fg.muted" py={12}>
+        <Card.Body justifyContent="center" alignItems="center" textAlign="center" color="fg.muted" py={12}>
           <Text fontSize="sm">Record or upload a meeting to generate its summary.</Text>
         </Card.Body>
       </Card.Root>
     );
   }
 
-  const flagCount = report.flags.length;
+  const flagCount = review.flags.length;
 
   return (
     <Card.Root variant="outline" h="full">
@@ -123,7 +123,7 @@ export const AdvisorSummaryView: React.FC<{ report: ComplianceAuditReport | null
         <PanelHeader
           icon={<LuFileCheck size={20} />}
           title="CRM summary"
-          subtitle={`Meeting ${report.meetingId}`}
+          subtitle={review.title}
           right={
             <Badge colorPalette={sync === "sent" ? "green" : "blue"} variant="subtle">
               {sync === "sent" ? "Sent to CRM" : "Ready to review"}
@@ -133,7 +133,7 @@ export const AdvisorSummaryView: React.FC<{ report: ComplianceAuditReport | null
       </Card.Header>
 
       <Card.Body gap={5}>
-        {flagCount > 0 && (
+        {review.status === "needs_review" && (
           <Alert.Root status="warning" size="sm">
             <Alert.Indicator />
             <Alert.Content>
@@ -145,34 +145,19 @@ export const AdvisorSummaryView: React.FC<{ report: ComplianceAuditReport | null
         )}
 
         <HStack gap={2} wrap="wrap">
-          <Badge colorPalette={summary.disclosuresVerified ? "green" : "orange"} variant="subtle">
-            {summary.disclosuresVerified ? "Disclosures verified" : "Disclosures not verified"}
+          <Badge colorPalette={riskPalette(review.overallRisk)} variant="subtle">
+            {review.overallRisk === "none" ? "No risk found" : `Overall risk: ${review.overallRisk}`}
           </Badge>
-          {summary.productsDiscussed.map((product) => (
-            <Badge key={product} variant="outline">
-              {product}
-            </Badge>
-          ))}
+          <Badge variant="outline">{review.mode === "live" ? "Live meeting" : "Recorded meeting"}</Badge>
         </HStack>
 
-        {summary.outsideBusinessMentions.length > 0 && (
-          <Alert.Root status="info" size="sm">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Description>
-                Outside business mentioned: {summary.outsideBusinessMentions.join(", ")}
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-
         <Field.Root>
-          <Field.Label>Objectives and discussion</Field.Label>
+          <Field.Label>Meeting summary</Field.Label>
           <Textarea
             size="sm"
             rows={4}
-            value={objectives}
-            onChange={(e) => setObjectives(e.target.value)}
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
             disabled={sync !== "idle"}
           />
         </Field.Root>

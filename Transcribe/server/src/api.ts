@@ -36,7 +36,12 @@ api.post('/meetings', express.raw({ type: () => true, limit: '200mb' }), async (
   res.status(202).json({ meetingId })
 })
 
-const riskRank: Record<OverallRisk, number> = { high: 3, medium: 2, low: 1, none: 0 }
+// TODO: replace with the real session user once auth exists. Fixed demo user so the client loads.
+api.get('/me', (_req, res) => {
+  res.json({ id: 'demo-user', name: 'Demo User', roles: ['ADVISOR', 'REVIEWER'] })
+})
+
+const riskRank: Record<OverallRisk, number> ={ high: 3, medium: 2, low: 1, none: 0 }
 
 // All meetings, most severe first, then newest first. The client filters by status.
 api.get('/meetings', async (_req, res) => {

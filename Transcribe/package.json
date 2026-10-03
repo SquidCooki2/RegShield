@@ -1,7 +1,7 @@
 {
   "name": "transcribe",
   "private": true,
-  "workspaces": ["server", "shared"],
+  "workspaces": ["client", "server", "shared"],
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "dev:server": "bun run --filter @transcribe/server dev",

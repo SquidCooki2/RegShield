@@ -1,374 +1,221 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LiveServerMessage, type LiveAlert, type LiveClientMessage, type ReviewRecord } from "@transcribe/shared";
 import { toaster } from "@/components/ui/toaster";
+import { errorMessage } from "@/lib/api";
 import { formatTime } from "@/lib/format";
-import type { SeverityLevel } from "@/types";
+import workletUrl from "@/lib/pcm-worklet.js?url";
 
 /**
- * Socket protocol (/ws/live-stream)
- *   client -> server  { type: "AUDIO_CHUNK_S3", audioBase64, timestamp }
- *   client -> server  { type: "LIVE_TRANSCRIPT_CHUNK", text }          (browser STT fallback only)
- *   server -> client  { type: "SESSION_STARTED", meetingId, s3Key }    (vault confirmed by the server)
- *   server -> client  { type: "TRANSCRIPT_TURN", speaker, startSec, text }
- *   server -> client  { type: "ADVISOR_NUDGE", severity, message }
+ * Live meeting over /api/live (protocol in shared/src/schema.ts):
+ *   client -> server  { type: "start", title, createdBy, consent: true }, then binary 16 kHz PCM, then { type: "stop" }
+ *   server -> client  session_started, caption (final, redacted), live_alert, error, meeting_complete
+ * Only the server's redacted captions are shown; nothing is transcribed in the browser.
  */
 
-export type MeetingStatus = "idle" | "connecting" | "live" | "stopping";
+export type MeetingStatus = "idle" | "connecting" | "live" | "analyzing";
 
-export interface TranscriptTurn {
+export interface Caption {
   id: string;
   speaker: string;
   timestamp: string;
   text: string;
-  source: "server" | "browser";
 }
-
-export interface LiveNudge {
-  id: string;
-  severity: SeverityLevel;
-  message: string;
-}
-
-interface RecognitionResultLike {
-  isFinal: boolean;
-  0: { transcript: string };
-}
-interface RecognitionLike {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((e: { resultIndex: number; results: ArrayLike<RecognitionResultLike> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((e: { error: string }) => void) | null;
-  start(): void;
-  stop(): void;
-}
-type RecognitionCtor = new () => RecognitionLike;
-
-const getRecognitionCtor = (): RecognitionCtor | null => {
-  const w = window as unknown as {
-    SpeechRecognition?: RecognitionCtor;
-    webkitSpeechRecognition?: RecognitionCtor;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-};
-
-const CHUNK_MS = 3000;
-const FLUSH_TIMEOUT_MS = 1500;
-
-const blobToBase64 = (blob: Blob) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(String(reader.result).split(",")[1] ?? "");
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-
-export const buildTranscript = (turns: TranscriptTurn[]) =>
-  turns.map((t) => `[${t.timestamp}] ${t.speaker}: ${t.text}`).join("\n");
 
 interface Options {
   onLiveChange?: (live: boolean) => void;
+  /** Called with the full review once the server has archived the audio and run the full analysis. */
+  onComplete?: (review: ReviewRecord) => void;
 }
 
-export function useLiveMeeting({ onLiveChange }: Options = {}) {
+export function useLiveMeeting({ onLiveChange, onComplete }: Options = {}) {
   const [status, setStatus] = useState<MeetingStatus>("idle");
-  const [turns, setTurns] = useState<TranscriptTurn[]>([]);
-  const [nudge, setNudge] = useState<LiveNudge | null>(null);
-  const [vaultKey, setVaultKey] = useState<string | null>(null);
+  const [captions, setCaptions] = useState<Caption[]>([]);
+  const [alerts, setAlerts] = useState<LiveAlert[]>([]);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const statusRef = useRef<MeetingStatus>("idle");
-  const turnsRef = useRef<TranscriptTurn[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<RecognitionLike | null>(null);
-  const wantSttRef = useRef(false);
-  const serverTurnsRef = useRef(false);
-  const startedAtRef = useRef(0);
-  const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const onLiveChangeRef = useRef(onLiveChange);
-  onLiveChangeRef.current = onLiveChange;
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const callbacksRef = useRef({ onLiveChange, onComplete });
+  callbacksRef.current = { onLiveChange, onComplete };
 
   const updateStatus = useCallback((next: MeetingStatus) => {
     statusRef.current = next;
     setStatus(next);
   }, []);
 
-  const elapsedSeconds = () => (Date.now() - startedAtRef.current) / 1000;
+  useEffect(() => {
+    if (status !== "live" || startedAt === null) return;
+    const timer = setInterval(() => setElapsedSeconds((Date.now() - startedAt) / 1000), 1000);
+    return () => clearInterval(timer);
+  }, [status, startedAt]);
 
-  const appendTurn = useCallback((turn: Omit<TranscriptTurn, "id">) => {
-    turnsRef.current = [...turnsRef.current, { ...turn, id: crypto.randomUUID() }];
-    setTurns(turnsRef.current);
-  }, []);
-
-  const releaseMedia = useCallback(() => {
-    wantSttRef.current = false;
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      /* already stopped */
-    }
-    recognitionRef.current = null;
-
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      try {
-        recorder.stop();
-      } catch {
-        /* already stopped */
-      }
-    }
-    recorderRef.current = null;
-
+  const releaseAudio = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
   }, []);
 
-  /** Tear everything down after a failure. Transcript captured so far is kept. */
-  const abort = useCallback(
+  /** Tear everything down after a failure. Captions received so far stay on screen. */
+  const fail = useCallback(
     (title: string, description: string) => {
-      statusRef.current = "idle"; // set first so ws.onclose ignores the close below
-      releaseMedia();
+      const wasLive = statusRef.current !== "connecting";
+      updateStatus("idle"); // set first so ws.onclose ignores the close below
+      releaseAudio();
       wsRef.current?.close();
       wsRef.current = null;
-      setStatus("idle");
-      onLiveChangeRef.current?.(false);
+      if (wasLive) callbacksRef.current.onLiveChange?.(false);
       toaster.create({ title, description, type: "error" });
     },
-    [releaseMedia]
+    [releaseAudio, updateStatus]
   );
 
-  const startRecognition = useCallback(() => {
-    const Ctor = getRecognitionCtor();
-    if (!Ctor) {
-      toaster.create({
-        title: "Live transcription unavailable",
-        description: "This browser can't transcribe live. Audio is still being recorded.",
-        type: "warning",
-      });
-      return;
-    }
-
-    const recognition = new Ctor();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      if (serverTurnsRef.current) return; // the server's labeled turns take over
-      // Walk every new result, not just the last one, so nothing is dropped.
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (!result.isFinal) continue;
-        const text = result[0].transcript.trim();
-        if (!text) continue;
-
-        appendTurn({
-          speaker: "Unlabeled",
-          timestamp: formatTime(elapsedSeconds()),
-          text,
-          source: "browser",
-        });
-        const ws = wsRef.current;
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "LIVE_TRANSCRIPT_CHUNK", text }));
-        }
-      }
+  /** Mic -> worklet (16 kHz PCM, 100 ms buffers) -> binary socket messages. */
+  const startAudio = useCallback(async (stream: MediaStream, ws: WebSocket) => {
+    const ctx = new AudioContext(); // device rate; the worklet resamples
+    audioCtxRef.current = ctx;
+    await ctx.audioWorklet.addModule(workletUrl);
+    const node = new AudioWorkletNode(ctx, "pcm-processor", { numberOfOutputs: 0 });
+    node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
     };
+    ctx.createMediaStreamSource(stream).connect(node);
+    await ctx.resume();
+  }, []);
 
-    // Chrome ends continuous recognition after silence, so restart while recording.
-    recognition.onend = () => {
-      if (!wantSttRef.current) return;
-      try {
-        recognition.start();
-      } catch {
-        /* already running */
-      }
-    };
-
-    recognition.onerror = (e) => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        wantSttRef.current = false;
-        toaster.create({
-          title: "Live transcription blocked",
-          description: "Speech recognition permission was denied. Audio is still being recorded.",
-          type: "warning",
-        });
-      }
-    };
-
-    wantSttRef.current = true;
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [appendTurn]);
-
-  const start = useCallback(async () => {
-    if (statusRef.current !== "idle") return;
-    updateStatus("connecting");
-    turnsRef.current = [];
-    setTurns([]);
-    setNudge(null);
-    setVaultKey(null);
-    serverTurnsRef.current = false;
-    sendQueueRef.current = Promise.resolve();
-
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      updateStatus("idle");
-      toaster.create({
-        title: "Microphone unavailable",
-        description: "Allow microphone access in your browser, then try again.",
-        type: "error",
-      });
-      return;
-    }
-    streamRef.current = stream;
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/live-stream`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      try {
-        startedAtRef.current = Date.now();
-        const recorder = new MediaRecorder(stream);
-        recorderRef.current = recorder;
-
-        recorder.ondataavailable = (event) => {
-          if (event.data.size === 0) return;
-          // Chain sends so the final chunk can be awaited before the socket closes.
-          sendQueueRef.current = sendQueueRef.current
-            .then(async () => {
-              if (ws.readyState !== WebSocket.OPEN) return;
-              const audioBase64 = await blobToBase64(event.data);
-              ws.send(
-                JSON.stringify({ type: "AUDIO_CHUNK_S3", audioBase64, timestamp: Date.now() })
-              );
-            })
-            .catch((err) => console.error("Audio chunk failed:", err));
-        };
-
-        recorder.start(CHUNK_MS);
-        startRecognition();
-        updateStatus("live");
-        onLiveChangeRef.current?.(true);
-        toaster.create({ title: "Recording started", type: "success" });
-      } catch (err) {
-        console.error(err);
-        abort("Couldn't start recording", "This browser couldn't start the audio recorder.");
-      }
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-          case "SESSION_STARTED":
-            setVaultKey(data.s3Key ?? null);
-            break;
-          case "TRANSCRIPT_TURN":
-            if (!serverTurnsRef.current) {
-              serverTurnsRef.current = true;
-              // Drop browser-generated lines so the transcript isn't duplicated.
-              turnsRef.current = turnsRef.current.filter((t) => t.source === "server");
-            }
-            appendTurn({
-              speaker: data.speaker ?? "Speaker",
-              timestamp: formatTime(data.startSec ?? elapsedSeconds()),
-              text: data.text,
-              source: "server",
-            });
-            break;
-          case "ADVISOR_NUDGE":
-            setNudge({
-              id: crypto.randomUUID(),
-              severity: data.severity ?? "HIGH",
-              message: data.message,
-            });
-            break;
-        }
-      } catch (err) {
-        console.error("Bad socket message:", err);
-      }
-    };
-
-    ws.onclose = () => {
-      const current = statusRef.current;
-      if (current === "idle" || current === "stopping") return;
-      abort(
-        current === "connecting" ? "Couldn't reach the streaming service" : "Connection lost",
-        current === "connecting"
-          ? "Check that the server is running, then try again."
-          : "Recording stopped. The transcript captured so far is kept."
-      );
-    };
-  }, [abort, appendTurn, startRecognition, updateStatus]);
-
-  /** Flushes speech recognition and the recorder, closes the socket, returns the transcript. */
-  const stop = useCallback(async (): Promise<string> => {
-    if (statusRef.current !== "live") return "";
-    updateStatus("stopping");
-
-    try {
-      // 1. Let speech recognition deliver its last result.
-      wantSttRef.current = false;
-      const recognition = recognitionRef.current;
-      if (recognition) {
-        await new Promise<void>((resolve) => {
-          const timer = setTimeout(resolve, FLUSH_TIMEOUT_MS);
-          recognition.onend = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-          try {
-            recognition.stop();
-          } catch {
-            clearTimeout(timer);
-            resolve();
-          }
-        });
-        recognitionRef.current = null;
-      }
-
-      // 2. Let the recorder emit its final chunk, then wait for it to be sent.
-      const recorder = recorderRef.current;
-      if (recorder && recorder.state !== "inactive") {
-        await new Promise<void>((resolve) => {
-          recorder.onstop = () => resolve();
-          recorder.stop();
-        });
-      }
-      await sendQueueRef.current;
-    } finally {
-      releaseMedia();
-      wsRef.current?.close();
+  const finish = useCallback(
+    async (meetingId: string) => {
+      updateStatus("idle"); // the server closes the socket next; that close is expected
       wsRef.current = null;
-      updateStatus("idle");
-      onLiveChangeRef.current?.(false);
-    }
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}`);
+        if (!res.ok) throw new Error(errorMessage(res.status, await res.text()));
+        callbacksRef.current.onComplete?.((await res.json()) as ReviewRecord);
+      } catch (err) {
+        toaster.create({
+          title: "Couldn't load the review",
+          description: `${(err as Error).message} The meeting is saved and will appear in the compliance queue.`,
+          type: "error",
+        });
+      }
+    },
+    [updateStatus]
+  );
 
-    return buildTranscript(turnsRef.current);
-  }, [releaseMedia, updateStatus]);
+  const start = useCallback(
+    async (title: string, createdBy: string) => {
+      if (statusRef.current !== "idle") return;
+      updateStatus("connecting");
+      setCaptions([]);
+      setAlerts([]);
+      setStartedAt(null);
+      setElapsedSeconds(0);
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        });
+      } catch {
+        updateStatus("idle");
+        toaster.create({
+          title: "Microphone unavailable",
+          description: "Allow microphone access in your browser, then try again.",
+          type: "error",
+        });
+        return;
+      }
+      streamRef.current = stream;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/live`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        const message: LiveClientMessage = { type: "start", title, createdBy, consent: true };
+        ws.send(JSON.stringify(message));
+      };
+
+      ws.onmessage = async (event) => {
+        const parsed = LiveServerMessage.safeParse(JSON.parse(String(event.data)));
+        if (!parsed.success) return console.error("Bad socket message:", event.data);
+        const message = parsed.data;
+
+        switch (message.type) {
+          case "session_started":
+            try {
+              await startAudio(stream, ws);
+            } catch (err) {
+              console.error(err);
+              fail("Couldn't start recording", "This browser couldn't start audio capture.");
+              return;
+            }
+            setStartedAt(Date.now());
+            updateStatus("live");
+            callbacksRef.current.onLiveChange?.(true);
+            toaster.create({ title: "Recording started", type: "success" });
+            break;
+          case "caption":
+            setCaptions((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                speaker: message.turn.speaker,
+                timestamp: formatTime(message.turn.start),
+                text: message.turn.text,
+              },
+            ]);
+            break;
+          case "live_alert":
+            setAlerts((prev) => [...prev, message.alert]);
+            break;
+          case "error":
+            toaster.create({ title: "Live meeting problem", description: message.message, type: "error" });
+            break;
+          case "meeting_complete":
+            await finish(message.meetingId);
+            break;
+        }
+      };
+
+      ws.onclose = () => {
+        const current = statusRef.current;
+        if (current === "idle") return;
+        if (current === "connecting") {
+          fail("Couldn't reach the live service", "Check that the server is running, then try again.");
+        } else {
+          fail(
+            "Connection lost",
+            "Recording stopped. What was captured is saved and will appear in the compliance queue."
+          );
+        }
+      };
+    },
+    [fail, finish, startAudio, updateStatus]
+  );
+
+  /** Stops the mic and asks the server to archive the audio and run the full analysis. */
+  const stop = useCallback(() => {
+    if (statusRef.current !== "live") return;
+    releaseAudio();
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "stop" } satisfies LiveClientMessage));
+    updateStatus("analyzing");
+    callbacksRef.current.onLiveChange?.(false);
+  }, [releaseAudio, updateStatus]);
 
   // Unmount only: release the mic and socket without firing error toasts.
   useEffect(
     () => () => {
       statusRef.current = "idle";
-      releaseMedia();
+      releaseAudio();
       wsRef.current?.close();
     },
-    [releaseMedia]
+    [releaseAudio]
   );
 
-  return {
-    status,
-    turns,
-    nudge,
-    vaultKey,
-    transcriptSource: turns.some((t) => t.source === "server") ? ("server" as const) : ("browser" as const),
-    start,
-    stop,
-  };
+  return { status, captions, alerts, elapsedSeconds, start, stop };
 }

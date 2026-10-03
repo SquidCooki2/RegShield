@@ -14,55 +14,86 @@ import {
   Input,
   Progress,
   Span,
+  Spinner,
   Tabs,
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { LuCloudUpload, LuFileAudio, LuLock, LuMic, LuRadio, LuSquare } from "react-icons/lu";
+import { LuCircle, LuCircleCheck, LuCloudUpload, LuFileAudio, LuLock, LuMic, LuRadio, LuSquare } from "react-icons/lu";
 import { toaster } from "@/components/ui/toaster";
 import { PanelHeader } from "./PanelHeader";
 import { useLiveMeeting } from "@/hooks/useLiveMeeting";
-import { stripExtension } from "@/lib/format";
-import type { ComplianceAuditReport, SeverityLevel, UserProfile } from "@/types";
+import { errorMessage } from "@/lib/api";
+import { formatTime, stripExtension } from "@/lib/format";
+import type { UserProfile } from "@/types";
+import type { ReviewRecord, ReviewStatus } from "@transcribe/shared";
 
-interface AuditResponse {
-  report: ComplianceAuditReport;
-  s3Location?: string;
-}
-
-/** POST to the audit endpoint with real upload progress (fetch can't report it). */
-const postAudit = (formData: FormData, onProgress?: (pct: number) => void) =>
-  new Promise<AuditResponse>((resolve, reject) => {
+/**
+ * POST /api/meetings with the audio as the raw body and real upload progress (fetch can't report
+ * it). Resolves once the server has archived the original; analysis continues in the background.
+ */
+const uploadRecording = (
+  file: File,
+  query: { title: string; createdBy: string },
+  onProgress: (pct: number) => void,
+) =>
+  new Promise<string>((resolve, reject) => {
+    const params = new URLSearchParams({ ...query, fileName: file.name, consent: "true" });
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/compliance/upload");
+    xhr.open("POST", `/api/meetings?${params}`);
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`The server responded with ${xhr.status}.`));
+        reject(new Error(errorMessage(xhr.status, xhr.responseText)));
         return;
       }
       try {
-        const data = JSON.parse(xhr.responseText);
-        if (data.report) resolve(data);
-        else reject(new Error("The server returned no audit report."));
+        resolve(JSON.parse(xhr.responseText).meetingId);
       } catch {
         reject(new Error("The server returned an unreadable response."));
       }
     };
-    xhr.onerror = () => reject(new Error("Network error."));
-    xhr.send(formData);
+    xhr.onerror = () => reject(new Error("Network error. Check your connection and try again."));
+    xhr.send(file);
   });
 
-const nudgeStatus = (severity: SeverityLevel) =>
-  severity === "CRITICAL" || severity === "HIGH" ? "error" : severity === "MEDIUM" ? "warning" : "info";
+const FINISHED: ReviewStatus[] = ["needs_review", "no_issues", "approved", "escalated", "failed"];
+const POLL_MS = 3000;
+
+/** Polls GET /api/meetings/:id until analysis finishes or fails. */
+const waitForAnalysis = async (
+  meetingId: string,
+  signal: AbortSignal,
+  onStatus: (status: ReviewStatus) => void,
+): Promise<ReviewRecord> => {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, POLL_MS));
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    const res = await fetch(`/api/meetings/${meetingId}`, { signal });
+    if (!res.ok) throw new Error(errorMessage(res.status, await res.text()));
+    const review = (await res.json()) as ReviewRecord;
+    onStatus(review.status);
+    if (FINISHED.includes(review.status)) return review;
+  }
+};
 
 type Phase = "idle" | "uploading" | "processing";
 
+/** Recorded-mode stages shown while a recording is processed, in order. */
+type Stage = "archiving" | "transcribing" | "analyzing";
+const STAGES: { stage: Stage; label: string }[] = [
+  { stage: "archiving", label: "Archiving the original" },
+  { stage: "transcribing", label: "Transcribing" },
+  { stage: "analyzing", label: "Checking for compliance issues" },
+];
+const stageFor = (status: ReviewStatus): Stage =>
+  status === "uploaded" || status === "transcribing" ? "transcribing" : "analyzing";
+
 interface Props {
   user: UserProfile;
-  onAuditComplete: (report: ComplianceAuditReport, audioUri?: string) => void;
+  onAuditComplete: (review: ReviewRecord) => void;
   onLiveChange?: (live: boolean) => void;
 }
 
@@ -74,10 +105,43 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [uploadKey, setUploadKey] = useState(0);
-  const [failedTranscript, setFailedTranscript] = useState<string | null>(null);
+  const [liveTitle, setLiveTitle] = useState("");
+  const [archived, setArchived] = useState(false);
+  const [stage, setStage] = useState<Stage>("archiving");
+  const pollRef = useRef<AbortController | null>(null);
+  useEffect(() => () => pollRef.current?.abort(), []);
 
-  const meeting = useLiveMeeting({ onLiveChange });
-  const inSession = meeting.status === "live" || meeting.status === "stopping";
+  /** Shared by both modes once the full analysis has finished (or failed). */
+  const reportResult = (review: ReviewRecord) => {
+    if (review.status === "failed") {
+      const reason = [...review.audit].reverse().find((e) => e.action === "failed")?.note;
+      toaster.create({
+        title: "Analysis failed",
+        description: `${reason ?? "Processing stopped."} The original recording is still archived.`,
+        type: "error",
+      });
+      return;
+    }
+    onAuditComplete(review);
+    toaster.create({
+      title: review.flags.length ? "Review needed" : "No issues found",
+      description: review.flags.length
+        ? `${review.flags.length} ${review.flags.length === 1 ? "flag was" : "flags were"} sent to the compliance queue. Overall risk: ${review.overallRisk}.`
+        : "The analysis found nothing to flag.",
+      type: review.flags.length ? "warning" : "success",
+    });
+  };
+
+  const meeting = useLiveMeeting({
+    onLiveChange,
+    onComplete: (review) => {
+      setArchived(Boolean(review.archiveKey));
+      setLiveTitle("");
+      setHasConsent(false); // consent applies to one meeting
+      reportResult(review);
+    },
+  });
+  const inSession = meeting.status === "live" || meeting.status === "analyzing";
   const sessionBusy = meeting.status !== "idle";
   const busy = phase !== "idle";
   const locked = sessionBusy || busy;
@@ -86,72 +150,51 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
   useEffect(() => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [meeting.turns]);
+  }, [meeting.captions]);
 
-  const handleComplete = (data: AuditResponse) => {
-    onAuditComplete(data.report, data.s3Location);
-    setHasConsent(false); // consent applies to one meeting
-    toaster.create({
-      title: "Audit complete",
-      description: `Risk level: ${data.report.overallRiskLevel}. The audit was saved.`,
-      type: "success",
-    });
-  };
-
-  const runLiveAudit = async (transcript: string) => {
-    setPhase("processing");
-    setFailedTranscript(null);
-    try {
-      const formData = new FormData();
-      formData.append("transcript", transcript);
-      formData.append("advisorId", user.id);
-      handleComplete(await postAudit(formData));
-    } catch (err) {
-      setFailedTranscript(transcript);
-      toaster.create({
-        title: "Audit failed",
-        description: `${(err as Error).message} The transcript is kept, so you can retry.`,
-        type: "error",
-      });
-    } finally {
-      setPhase("idle");
-    }
-  };
-
-  const endMeeting = async () => {
-    const transcript = await meeting.stop();
-    if (!transcript.trim()) {
-      toaster.create({
-        title: "No speech captured",
-        description: "Nothing was transcribed during this session, so no audit was run.",
-        type: "warning",
-      });
-      return;
-    }
-    await runLiveAudit(transcript);
+  const startMeeting = () => {
+    setArchived(false);
+    void meeting.start(liveTitle.trim(), user.name);
   };
 
   const submitBatch = async () => {
     if (!file || !hasConsent) return;
     setPhase("uploading");
     setUploadPct(0);
+    setStage("archiving");
+    let meetingId: string;
     try {
-      const formData = new FormData();
-      formData.append("audio", file);
-      formData.append("advisorId", user.id);
-      formData.append("meetingTitle", title || file.name);
-      const data = await postAudit(formData, (pct) => {
-        setUploadPct(pct);
-        if (pct >= 100) setPhase("processing"); // upload done, server is transcribing
-      });
-      handleComplete(data);
-      setFile(null);
-      setTitle("");
-      setUploadKey((k) => k + 1);
+      meetingId = await uploadRecording(
+        file,
+        { title: title.trim() || stripExtension(file.name), createdBy: user.name },
+        (pct) => {
+          setUploadPct(pct);
+          if (pct >= 100) setPhase("processing"); // upload done, server is archiving
+        },
+      );
     } catch (err) {
+      toaster.create({ title: "Upload failed", description: (err as Error).message, type: "error" });
+      setPhase("idle");
+      return;
+    }
+
+    // The original is archived, so the form can clear and consent is used up.
+    setPhase("processing");
+    setStage("transcribing");
+    setFile(null);
+    setTitle("");
+    setUploadKey((k) => k + 1);
+    setHasConsent(false); // consent applies to one meeting
+
+    const controller = new AbortController();
+    pollRef.current = controller;
+    try {
+      reportResult(await waitForAnalysis(meetingId, controller.signal, (status) => setStage(stageFor(status))));
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       toaster.create({
-        title: "Upload failed",
-        description: (err as Error).message,
+        title: "Lost track of the analysis",
+        description: `${(err as Error).message} The recording is archived and will appear in the compliance queue when it finishes.`,
         type: "error",
       });
     } finally {
@@ -163,12 +206,10 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
     meeting.status === "connecting"
       ? "Connecting..."
       : meeting.status === "live"
-        ? "Recording and streaming"
-        : meeting.status === "stopping"
-          ? "Finishing up..."
-          : phase === "processing"
-            ? "Running the audit..."
-            : "Ready to start";
+        ? `Recording ${formatTime(meeting.elapsedSeconds)}`
+        : meeting.status === "analyzing"
+          ? "Archiving and running the full audit..."
+          : "Ready to start";
 
   return (
     <Card.Root variant="outline" h="full">
@@ -178,9 +219,9 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
           title="Meeting audio"
           subtitle="Record a live meeting or upload a recording"
           right={
-            <Badge colorPalette={meeting.vaultKey ? "green" : "gray"} variant="subtle" title={meeting.vaultKey ?? undefined}>
+            <Badge colorPalette={archived ? "green" : "gray"} variant="subtle">
               <LuLock />
-              {meeting.vaultKey ? "Vault locked" : "Vault idle"}
+              {archived ? "Vault locked" : "Vault idle"}
             </Badge>
           }
         />
@@ -220,15 +261,16 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
 
           <Tabs.Content value="live" pt={5}>
             <VStack align="stretch" gap={4}>
-              {meeting.nudge && (
-                <Alert.Root status={nudgeStatus(meeting.nudge.severity)}>
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Title>Compliance nudge ({meeting.nudge.severity})</Alert.Title>
-                    <Alert.Description>{meeting.nudge.message}</Alert.Description>
-                  </Alert.Content>
-                </Alert.Root>
-              )}
+              <Field.Root required>
+                <Field.Label>Meeting title</Field.Label>
+                <Input
+                  size="sm"
+                  placeholder="e.g. Annual review"
+                  value={liveTitle}
+                  onChange={(e) => setLiveTitle(e.target.value)}
+                  disabled={locked}
+                />
+              </Field.Root>
 
               <Flex justify="space-between" align="center" gap={3} p={3.5} bg="bg.muted" borderRadius="lg">
                 <HStack gap={2.5}>
@@ -240,27 +282,43 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
                     animationDuration="1.5s"
                     animationIterationCount="infinite"
                   />
-                  <Text fontSize="sm" fontWeight="medium">
+                  <Text fontSize="sm" fontWeight="medium" fontVariantNumeric="tabular-nums">
                     {statusLabel}
                   </Text>
                 </HStack>
 
                 {inSession ? (
-                  <Button size="sm" colorPalette="red" onClick={endMeeting} loading={meeting.status === "stopping"}>
-                    <LuSquare /> End meeting and run audit
+                  <Button size="sm" colorPalette="red" onClick={meeting.stop} loading={meeting.status === "analyzing"}>
+                    <LuSquare /> End meeting
                   </Button>
                 ) : (
                   <Button
                     size="sm"
                     colorPalette="blue"
-                    onClick={meeting.start}
+                    onClick={startMeeting}
                     loading={meeting.status === "connecting"}
-                    disabled={!hasConsent || locked}
+                    disabled={!hasConsent || !liveTitle.trim() || locked}
                   >
                     <LuMic /> Start meeting
                   </Button>
                 )}
               </Flex>
+
+              {meeting.alerts.length > 0 && (
+                <VStack align="stretch" gap={2} aria-live="polite">
+                  {[...meeting.alerts].reverse().map((alert) => (
+                    <Alert.Root key={`${alert.ruleId}-${alert.shownAt}`} status="warning" variant="subtle" size="sm">
+                      <Alert.Indicator />
+                      <Alert.Content>
+                        <Alert.Title>{alert.nudge}</Alert.Title>
+                        <Alert.Description color="fg.muted">
+                          {alert.ruleId} at {formatTime(alert.timestampSeconds)}: "{alert.quote}"
+                        </Alert.Description>
+                      </Alert.Content>
+                    </Alert.Root>
+                  ))}
+                </VStack>
+              )}
 
               <Box
                 ref={feedRef}
@@ -274,42 +332,30 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
                 fontSize="xs"
                 lineHeight="tall"
               >
-                {meeting.turns.length === 0 ? (
+                {meeting.captions.length === 0 ? (
                   <Text color="fg.muted" fontStyle="italic" textAlign="center" py={16} fontFamily="body">
                     {meeting.status === "live"
-                      ? "Listening. Lines appear as people speak."
-                      : "The transcript appears here during the meeting."}
+                      ? "Listening. Lines appear a moment after each person finishes speaking."
+                      : "The redacted transcript appears here during the meeting."}
                   </Text>
                 ) : (
-                  meeting.turns.map((turn) => (
-                    <Text key={turn.id} mb={2}>
+                  meeting.captions.map((caption) => (
+                    <Text key={caption.id} mb={2}>
                       <Span fontWeight="bold" color="blue.fg">
-                        [{turn.timestamp}] {turn.speaker}:
+                        [{caption.timestamp}] {caption.speaker}:
                       </Span>{" "}
-                      {turn.text}
+                      {caption.text}
                     </Text>
                   ))
                 )}
               </Box>
 
-              {meeting.turns.length > 0 && meeting.transcriptSource === "browser" && (
-                <Alert.Root status="warning" size="sm">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Description>
-                      Browser transcription can't tell speakers apart, so every line is unlabeled.
-                      Check who said what before relying on any flag.
-                    </Alert.Description>
-                  </Alert.Content>
-                </Alert.Root>
-              )}
-
-              {phase === "processing" && <Progress.Root value={null} size="xs"><Progress.Track><Progress.Range /></Progress.Track></Progress.Root>}
-
-              {failedTranscript && !locked && (
-                <Button size="sm" variant="outline" onClick={() => runLiveAudit(failedTranscript)}>
-                  Retry audit
-                </Button>
+              {meeting.status === "analyzing" && (
+                <Progress.Root value={null} size="xs">
+                  <Progress.Track>
+                    <Progress.Range />
+                  </Progress.Track>
+                </Progress.Root>
               )}
             </VStack>
           </Tabs.Content>
@@ -345,22 +391,42 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
                   </Icon>
                   <FileUpload.DropzoneContent>
                     <Box>Drop a recording here or click to browse</Box>
-                    <Box color="fg.muted">MP3, WAV or M4A</Box>
+                    <Box color="fg.muted">MP3, WAV, M4A, FLAC, OGG or WebM</Box>
                   </FileUpload.DropzoneContent>
                 </FileUpload.Dropzone>
                 <FileUpload.List clearable />
               </FileUpload.Root>
 
-              {busy && (
+              {phase === "uploading" && (
                 <VStack align="stretch" gap={1.5}>
-                  <Progress.Root value={phase === "uploading" ? uploadPct : null} size="xs">
+                  <Progress.Root value={uploadPct} size="xs">
                     <Progress.Track>
                       <Progress.Range />
                     </Progress.Track>
                   </Progress.Root>
                   <Text fontSize="xs" color="fg.muted">
-                    {phase === "uploading" ? `Uploading ${uploadPct}%` : "Transcribing and analyzing..."}
+                    Uploading {uploadPct}%
                   </Text>
+                </VStack>
+              )}
+
+              {phase === "processing" && (
+                <VStack align="stretch" gap={2} p={3.5} bg="bg.muted" borderRadius="lg" aria-live="polite">
+                  {STAGES.map(({ stage: s, label }, i) => {
+                    const current = STAGES.findIndex((x) => x.stage === stage);
+                    return (
+                      <HStack key={s} gap={2.5} color={i > current ? "fg.subtle" : undefined}>
+                        {i < current ? (
+                          <Icon color="green.fg"><LuCircleCheck /></Icon>
+                        ) : i === current ? (
+                          <Spinner size="xs" />
+                        ) : (
+                          <Icon><LuCircle /></Icon>
+                        )}
+                        <Text fontSize="sm">{label}</Text>
+                      </HStack>
+                    );
+                  })}
                 </VStack>
               )}
 
@@ -370,7 +436,7 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
                 onClick={submitBatch}
                 disabled={!file || !hasConsent || busy}
                 loading={busy}
-                loadingText="Processing..."
+                loadingText={phase === "uploading" ? "Uploading..." : "Processing..."}
               >
                 Upload and analyze
               </Button>

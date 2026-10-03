@@ -1,4 +1,4 @@
-import type { ReviewRecord } from '@transcribe/shared'
+import type { ReviewRecord, TranscriptTurn } from '@transcribe/shared'
 import { analyzeTranscript } from './analysis'
 import { auditEvent, createReview, updateReview } from './store'
 import { parseTranscribeOutput } from './transcript'
@@ -53,7 +53,7 @@ export async function startRecordedMeeting(input: NewRecording): Promise<string>
   return meetingId
 }
 
-async function markFailed(meetingId: string, error: unknown): Promise<void> {
+export async function markFailed(meetingId: string, error: unknown): Promise<void> {
   console.error(`Meeting ${meetingId} failed:`, error)
   const message = error instanceof Error ? error.message : String(error)
   await updateReview(meetingId, { status: 'failed' }, auditEvent(SYSTEM, 'failed', message)).catch(console.error)
@@ -67,6 +67,11 @@ async function processRecording(meetingId: string, archiveKey: string): Promise<
   const transcript = parseTranscribeOutput(await fetchRedactedTranscript(job))
   await updateReview(meetingId, { status: 'analyzing', transcript }, auditEvent(SYSTEM, 'transcribed'))
 
+  await analyzeAndSave(meetingId, transcript)
+}
+
+// Full analysis of a finished transcript (recorded or live); the authoritative result for review.
+export async function analyzeAndSave(meetingId: string, transcript: TranscriptTurn[]): Promise<void> {
   const result = await analyzeTranscript(transcript, 'full')
   await updateReview(
     meetingId,

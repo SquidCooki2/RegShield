@@ -15,13 +15,14 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { LuShieldAlert, LuSparkles } from "react-icons/lu";
+import { LuShieldAlert } from "react-icons/lu";
 import { ColorModeButton } from "./components/ui/color-mode";
 import { TranscribeWorkspace } from "./components/TranscribeWorkspace";
 import { ComplianceQueue } from "./components/ComplianceQueue";
 import { AdvisorSummaryView } from "./components/AdvisorSummaryView";
 import { useCurrentUser } from "./hooks/useCurrentUser";
-import type { ComplianceAuditReport, UserProfile, UserRole } from "./types";
+import type { UserProfile, UserRole } from "./types";
+import type { ReviewRecord } from "@transcribe/shared";
 
 const ROLE_LABEL: Record<UserRole, string> = {
   ADVISOR: "Advisor",
@@ -58,7 +59,7 @@ const SectionHeader: React.FC<{ title: string; description: string }> = ({ title
 
 function Dashboard({ user }: { user: UserProfile }) {
   const [activeRole, setActiveRole] = useState<UserRole>(user.roles[0]);
-  const [report, setReport] = useState<ComplianceAuditReport | null>(null);
+  const [review, setReview] = useState<ReviewRecord | null>(null);
   const [isLive, setIsLive] = useState(false);
 
   const canAdvise = user.roles.includes("ADVISOR");
@@ -131,13 +132,6 @@ function Dashboard({ user }: { user: UserProfile }) {
                 </Text>
               </HStack>
 
-              {report?.modelId && (
-                <Badge colorPalette="purple" variant="subtle">
-                  <LuSparkles size={12} />
-                  {report.modelId}
-                </Badge>
-              )}
-
               <HStack gap={2.5}>
                 <Avatar.Root size="sm">
                   <Avatar.Fallback name={user.name} />
@@ -172,9 +166,9 @@ function Dashboard({ user }: { user: UserProfile }) {
               <TranscribeWorkspace
                 user={user}
                 onLiveChange={setIsLive}
-                onAuditComplete={(next) => setReport(next)}
+                onAuditComplete={setReview}
               />
-              <AdvisorSummaryView key={report?.meetingId ?? "empty"} report={report} />
+              <AdvisorSummaryView key={review?.meetingId ?? "empty"} review={review} user={user} />
             </SimpleGrid>
           </VStack>
         )}

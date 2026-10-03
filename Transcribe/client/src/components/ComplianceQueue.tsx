@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Badge,
   Box,
   Button,
@@ -10,6 +11,7 @@ import {
   GridItem,
   HStack,
   Separator,
+  Spinner,
   Text,
   Textarea,
   VStack,
@@ -25,11 +27,34 @@ import {
 } from "react-icons/lu";
 import { toaster } from "@/components/ui/toaster";
 import { PanelHeader } from "./PanelHeader";
+import { errorMessage, sendJson } from "@/lib/api";
 import { formatTime, riskPalette } from "@/lib/format";
-import type { CaseDisposition, MeetingCaseRecord, UserProfile } from "@/types";
+import type { UserProfile } from "@/types";
+import type { ReviewRecord, SpeakerRole } from "@transcribe/shared";
 
-// Assumes GET /api/compliance/audio/:meetingId -> { url } (presigned S3 URL),
-// and that POST /api/compliance/resolve/:meetingId accepts "ESCALATED" | "APPROVED".
+/** One row of GET /api/meetings (already sorted by risk, then newest). */
+type QueueItem = Pick<
+  ReviewRecord,
+  "meetingId" | "mode" | "title" | "createdAt" | "createdBy" | "status" | "overallRisk" | "summaryStatus"
+> & { flagCount: number };
+
+/** GET /api/meetings/:id adds a short-lived presigned link to the archived original. */
+type MeetingDetail = ReviewRecord & { audioUrl?: string };
+
+type Decision = "approve" | "escalate";
+
+const ROLE_LABEL: Record<SpeakerRole, string> = {
+  advisor: "Advisor",
+  client: "Client",
+  third_party: "Third party",
+};
+
+const speakerName = (detail: MeetingDetail, speaker: string) => {
+  const role = detail.speakerRoles[speaker];
+  return role ? ROLE_LABEL[role] : speaker;
+};
+
+const formatDate = (iso: string) => new Date(iso).toLocaleString();
 
 const seekAndPlay = (audio: HTMLAudioElement, seconds: number) => {
   const go = () => {
@@ -41,35 +66,31 @@ const seekAndPlay = (audio: HTMLAudioElement, seconds: number) => {
 };
 
 export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer }) => {
-  const [queue, setQueue] = useState<MeetingCaseRecord[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<MeetingDetail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  // Bumped by Refresh so the open case reloads too (its audio link expires after 15 minutes).
+  const [refreshCount, setRefreshCount] = useState(0);
   const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioLoading, setAudioLoading] = useState(false);
   const [playingFlag, setPlayingFlag] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const selected = queue.find((m) => m.meetingId === selectedId) ?? null;
-  const flags = selected?.auditReport?.flags ?? [];
 
   const fetchQueue = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/compliance/queue");
-      if (!res.ok) throw new Error(`Queue request failed (${res.status})`);
-      const data = await res.json();
-      const next: MeetingCaseRecord[] = data.queue ?? [];
+      const res = await fetch("/api/meetings");
+      if (!res.ok) throw new Error(errorMessage(res.status, await res.text()));
+      const next = ((await res.json()) as QueueItem[]).filter((m) => m.status === "needs_review");
       setQueue(next);
-      setSelectedId((prev) =>
-        next.some((m) => m.meetingId === prev) ? prev : (next[0]?.meetingId ?? null)
-      );
+      setSelectedId((prev) => (next.some((m) => m.meetingId === prev) ? prev : (next[0]?.meetingId ?? null)));
+      setRefreshCount((n) => n + 1);
     } catch (err) {
-      console.error("Queue load failed:", err);
       toaster.create({
         title: "Couldn't load the queue",
-        description: "Check your connection, then try Refresh.",
+        description: `${(err as Error).message} Check your connection, then try Refresh.`,
         type: "error",
       });
     } finally {
@@ -81,29 +102,28 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
     fetchQueue();
   }, [fetchQueue]);
 
-  // Switching cases clears the note (it belongs to one case) and loads that case's audio.
+  // The note and playback belong to one case, so they reset only when the selection changes.
   useEffect(() => {
     setNote("");
     setPlayingFlag(null);
-    setAudioUrl(null);
-    if (!selectedId) return;
+    setDetail(null);
+  }, [selectedId]);
 
+  useEffect(() => {
+    setDetailError(null);
+    if (!selectedId) return;
     const controller = new AbortController();
-    setAudioLoading(true);
     (async () => {
       try {
-        const res = await fetch(`/api/compliance/audio/${selectedId}`, { signal: controller.signal });
-        if (!res.ok) return;
-        const data = await res.json();
-        setAudioUrl(data.url ?? null);
+        const res = await fetch(`/api/meetings/${selectedId}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(errorMessage(res.status, await res.text()));
+        setDetail((await res.json()) as MeetingDetail);
       } catch (err) {
-        if ((err as Error).name !== "AbortError") console.error("Audio URL failed:", err);
-      } finally {
-        if (!controller.signal.aborted) setAudioLoading(false);
+        if ((err as Error).name !== "AbortError") setDetailError((err as Error).message);
       }
     })();
     return () => controller.abort();
-  }, [selectedId]);
+  }, [selectedId, refreshCount]);
 
   const toggleFlagAudio = (idx: number, seconds: number) => {
     const audio = audioRef.current;
@@ -116,34 +136,32 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
     seekAndPlay(audio, seconds);
   };
 
-  const disposition = async (status: CaseDisposition) => {
-    if (!selected || isSubmitting) return;
+  const decide = async (decision: Decision) => {
+    if (!detail || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/compliance/resolve/${selected.meetingId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, notes: note.trim(), officerId: reviewer.id }),
+      await sendJson(`/api/meetings/${detail.meetingId}/${decision}`, "POST", {
+        actor: reviewer.name,
+        note: note.trim() || undefined,
       });
-      if (!res.ok) throw new Error(`Resolve request failed (${res.status})`);
-
       toaster.create({
-        title: status === "ESCALATED" ? "Case escalated" : "Case approved",
-        description: `Meeting ${selected.meetingId} was updated.`,
-        type: status === "ESCALATED" ? "warning" : "success",
+        title: decision === "escalate" ? "Meeting escalated" : "Meeting approved",
+        description: `"${detail.title}" left the queue. Your decision is in its audit trail.`,
+        type: decision === "escalate" ? "warning" : "success",
       });
       await fetchQueue();
     } catch (err) {
-      console.error(err);
       toaster.create({
-        title: "Case not updated",
-        description: "The server rejected the change. Try again before moving on.",
+        title: "Decision not saved",
+        description: (err as Error).message,
         type: "error",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const selected = queue.find((m) => m.meetingId === selectedId) ?? null;
 
   return (
     <Card.Root variant="outline">
@@ -166,12 +184,12 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
           {/* Queue list */}
           <GridItem pr={{ lg: 6 }} borderRightWidth={{ base: 0, lg: "1px" }}>
             <Text fontSize="sm" fontWeight="semibold" mb={3}>
-              Awaiting review ({queue.length})
+              Needs review ({queue.length})
             </Text>
             <VStack align="stretch" gap={2} maxH="65vh" overflowY="auto">
               {queue.length === 0 && !isLoading && (
                 <Text fontSize="sm" color="fg.muted">
-                  No meetings are waiting for review.
+                  No meetings need review. Flagged meetings appear here once their analysis finishes.
                 </Text>
               )}
               {queue.map((item) => {
@@ -194,17 +212,21 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                   >
                     <Flex justify="space-between" align="center" gap={2} mb={1.5}>
                       <Text fontWeight="semibold" fontSize="sm" truncate>
-                        {item.meetingId}
+                        {item.title}
                       </Text>
-                      <Badge colorPalette={riskPalette(item.overallRiskLevel)} size="sm">
-                        {item.overallRiskLevel} ({item.overallRiskScore})
+                      <Badge colorPalette={riskPalette(item.overallRisk)} size="sm" flexShrink={0}>
+                        {item.overallRisk} risk
                       </Badge>
                     </Flex>
-                    <Text fontSize="xs" color="fg.muted" truncate>
-                      {item.auditReport?.flags?.[0]?.quote
-                        ? `"${item.auditReport.flags[0].quote}"`
-                        : "No specific rule violations detected"}
-                    </Text>
+                    <HStack gap={2} fontSize="xs" color="fg.muted">
+                      <Badge variant="outline" size="sm">
+                        {item.mode === "live" ? "Live" : "Recorded"}
+                      </Badge>
+                      <Text truncate>
+                        {item.flagCount} {item.flagCount === 1 ? "flag" : "flags"} · {item.createdBy} ·{" "}
+                        {formatDate(item.createdAt)}
+                      </Text>
+                    </HStack>
                   </Box>
                 );
               })}
@@ -213,24 +235,44 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
 
           {/* Case detail */}
           <GridItem>
-            {selected ? (
+            {!selected ? (
+              <VStack py={16} gap={2} color="fg.muted" textAlign="center">
+                <LuClock size={32} />
+                <Text fontSize="sm">Select a meeting to review its flags and audio.</Text>
+              </VStack>
+            ) : detailError ? (
+              <Alert.Root status="error">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>Couldn't load this meeting</Alert.Title>
+                  <Alert.Description>{detailError} Try Refresh.</Alert.Description>
+                </Alert.Content>
+              </Alert.Root>
+            ) : !detail ? (
+              <VStack py={16}>
+                <Spinner />
+              </VStack>
+            ) : (
               <VStack align="stretch" gap={5}>
                 <Flex justify="space-between" align="center" gap={3}>
                   <Box minW={0}>
-                    <Text fontWeight="semibold">Meeting {selected.meetingId}</Text>
-                    <Text fontSize="xs" fontFamily="mono" color="fg.muted" truncate>
-                      {selected.s3AudioLocation || "Audio location unavailable"}
+                    <Text fontWeight="semibold" truncate>
+                      {detail.title}
+                    </Text>
+                    <Text fontSize="xs" color="fg.muted">
+                      {detail.mode === "live" ? "Live meeting" : "Recorded meeting"} by {detail.createdBy},{" "}
+                      {formatDate(detail.createdAt)}
                     </Text>
                   </Box>
-                  <Badge colorPalette={riskPalette(selected.overallRiskLevel)} variant="subtle" size="md">
-                    {selected.overallRiskScore}/100 risk
+                  <Badge colorPalette={riskPalette(detail.overallRisk)} variant="subtle" size="md">
+                    {detail.overallRisk} risk
                   </Badge>
                 </Flex>
 
-                {audioUrl ? (
+                {detail.audioUrl ? (
                   <audio
                     ref={audioRef}
-                    src={audioUrl}
+                    src={detail.audioUrl}
                     controls
                     preload="metadata"
                     style={{ width: "100%" }}
@@ -245,81 +287,147 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                     }
                   />
                 ) : (
-                  !audioLoading && (
-                    <Text fontSize="xs" color="fg.muted">
-                      Audio isn't available for this meeting.
-                    </Text>
-                  )
+                  <Text fontSize="xs" color="fg.muted">
+                    Audio isn't available for this meeting.
+                  </Text>
                 )}
 
                 <Separator />
 
                 <VStack align="stretch" gap={3}>
                   <Text fontSize="sm" fontWeight="semibold">
-                    Compliance flags ({flags.length})
+                    Compliance flags ({detail.flags.length})
                   </Text>
-                  {flags.length === 0 && (
-                    <Text fontSize="sm" color="fg.muted">
-                      No flags were raised for this meeting.
-                    </Text>
-                  )}
-                  {flags.map((flag, idx) => {
-                    const start = flag.timestampRange?.startSec;
-                    const canPlay = Boolean(audioUrl) && start !== undefined;
-                    return (
-                      <Box
-                        key={idx}
-                        colorPalette={riskPalette(flag.severity)}
-                        p={4}
-                        borderRadius="lg"
-                        borderWidth="1px"
-                        borderColor="colorPalette.muted"
-                        bg="colorPalette.subtle"
-                      >
-                        <Flex justify="space-between" align="center" gap={2}>
+                  {detail.flags.map((flag, idx) => (
+                    <Box
+                      key={idx}
+                      colorPalette={riskPalette(flag.severity)}
+                      p={4}
+                      borderRadius="lg"
+                      borderWidth="1px"
+                      borderColor="colorPalette.muted"
+                      bg="colorPalette.subtle"
+                    >
+                      <Flex justify="space-between" align="center" gap={2} wrap="wrap">
+                        <HStack gap={2} wrap="wrap">
                           <Badge colorPalette={riskPalette(flag.severity)} size="sm">
-                            {flag.ruleCategory}
+                            {flag.severity}
                           </Badge>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            colorPalette="blue"
-                            disabled={!canPlay}
-                            onClick={() => start !== undefined && toggleFlagAudio(idx, start)}
-                          >
-                            {playingFlag === idx ? <LuPause size={11} /> : <LuPlay size={11} />}
-                            {start === undefined
-                              ? "No timestamp"
-                              : playingFlag === idx
-                                ? `Pause (${formatTime(start)})`
-                                : `Play at ${formatTime(start)}`}
-                          </Button>
-                        </Flex>
-                        <Text fontSize="sm" fontFamily="mono" fontWeight="medium" color="colorPalette.fg" mt={3}>
-                          "{flag.quote}"
+                          <Text fontSize="sm" fontWeight="semibold">
+                            {flag.ruleId}: {flag.ruleName}
+                          </Text>
+                          <Badge variant="outline" size="sm">
+                            {ROLE_LABEL[flag.speakerRole]}
+                          </Badge>
+                        </HStack>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          colorPalette="blue"
+                          disabled={!detail.audioUrl}
+                          onClick={() => toggleFlagAudio(idx, flag.timestampSeconds)}
+                        >
+                          {playingFlag === idx ? <LuPause size={11} /> : <LuPlay size={11} />}
+                          {playingFlag === idx
+                            ? `Pause (${formatTime(flag.timestampSeconds)})`
+                            : `Play at ${formatTime(flag.timestampSeconds)}`}
+                        </Button>
+                      </Flex>
+                      <Text fontSize="sm" fontFamily="mono" fontWeight="medium" color="colorPalette.fg" mt={3}>
+                        "{flag.quote}"
+                      </Text>
+                      {!flag.quoteVerified && (
+                        <Text fontSize="xs" color="orange.fg" mt={1}>
+                          This quote wasn't found in the transcript. Listen to the audio before relying on it.
                         </Text>
-                        <Text fontSize="sm" mt={2}>
-                          {flag.explanation}
-                        </Text>
-                        <Text fontSize="sm" color="fg.muted" mt={1.5}>
-                          <Text as="span" fontWeight="semibold" color="fg">
-                            Action:
-                          </Text>{" "}
-                          {flag.recommendedAction}
-                        </Text>
-                      </Box>
-                    );
-                  })}
+                      )}
+                      <Text fontSize="sm" mt={2}>
+                        {flag.explanation}
+                      </Text>
+                      <Text fontSize="sm" color="fg.muted" mt={1.5}>
+                        <Text as="span" fontWeight="semibold" color="fg">
+                          Suggested action:
+                        </Text>{" "}
+                        {flag.suggestedAction}
+                      </Text>
+                    </Box>
+                  ))}
+                </VStack>
+
+                {detail.liveAlerts.length > 0 && (
+                  <VStack align="stretch" gap={2}>
+                    <Text fontSize="sm" fontWeight="semibold">
+                      Alerts shown to the advisor during the meeting ({detail.liveAlerts.length})
+                    </Text>
+                    {detail.liveAlerts.map((alert, idx) => (
+                      <Text key={idx} fontSize="sm">
+                        <Text as="span" fontFamily="mono" color="fg.muted">
+                          [{formatTime(alert.timestampSeconds)}] {alert.ruleId}
+                        </Text>{" "}
+                        {alert.nudge}
+                      </Text>
+                    ))}
+                  </VStack>
+                )}
+
+                <VStack align="stretch" gap={2}>
+                  <Text fontSize="sm" fontWeight="semibold">
+                    Redacted transcript
+                  </Text>
+                  <Box
+                    maxH="240px"
+                    overflowY="auto"
+                    p={3.5}
+                    bg="bg.muted"
+                    borderWidth="1px"
+                    borderRadius="lg"
+                    fontSize="xs"
+                    lineHeight="tall"
+                  >
+                    {detail.transcript.map((turn, idx) => (
+                      <Text key={idx} mb={2}>
+                        <Text as="span" fontWeight="bold" color="blue.fg">
+                          [{formatTime(turn.start)}] {speakerName(detail, turn.speaker)}:
+                        </Text>{" "}
+                        {turn.text}
+                      </Text>
+                    ))}
+                  </Box>
+                </VStack>
+
+                <VStack align="stretch" gap={2}>
+                  <Text fontSize="sm" fontWeight="semibold">
+                    Audit trail
+                  </Text>
+                  <VStack align="stretch" gap={1} fontSize="xs">
+                    {detail.audit.map((event, idx) => (
+                      <Text key={idx}>
+                        <Text as="span" color="fg.muted">
+                          {formatDate(event.at)}
+                        </Text>{" "}
+                        <Text as="span" fontWeight="medium">
+                          {event.action.replaceAll("_", " ")}
+                        </Text>{" "}
+                        by {event.actor}
+                        {event.note && (
+                          <Text as="span" color="fg.muted">
+                            {" "}
+                            ({event.note})
+                          </Text>
+                        )}
+                      </Text>
+                    ))}
+                  </VStack>
                 </VStack>
 
                 <Box p={4} borderRadius="lg" bg="bg.muted" borderWidth="1px">
                   <Field.Root>
-                    <Field.Label>Reviewer notes ({reviewer.name})</Field.Label>
+                    <Field.Label>Reviewer note ({reviewer.name})</Field.Label>
                     <Textarea
                       size="sm"
                       bg="bg.panel"
                       rows={3}
-                      placeholder="Notes for the audit trail"
+                      placeholder="Saved to the audit trail with your decision"
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       disabled={isSubmitting}
@@ -330,27 +438,22 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                     <Button
                       size="sm"
                       colorPalette="red"
-                      onClick={() => disposition("ESCALATED")}
+                      onClick={() => decide("escalate")}
                       disabled={isSubmitting || note.trim().length === 0}
                     >
-                      <LuArrowUpRight /> Escalate to branch manager
+                      <LuArrowUpRight /> Escalate
                     </Button>
                     <Button
                       size="sm"
                       colorPalette="green"
                       variant="subtle"
-                      onClick={() => disposition("APPROVED")}
+                      onClick={() => decide("approve")}
                       disabled={isSubmitting}
                     >
-                      <LuCircleCheck /> Approve and archive
+                      <LuCircleCheck /> Approve
                     </Button>
                   </HStack>
                 </Box>
-              </VStack>
-            ) : (
-              <VStack py={16} gap={2} color="fg.muted" textAlign="center">
-                <LuClock size={32} />
-                <Text fontSize="sm">Select a meeting to review its flags and audio.</Text>
               </VStack>
             )}
           </GridItem>

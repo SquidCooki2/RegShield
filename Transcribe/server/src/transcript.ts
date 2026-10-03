@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { Item } from '@aws-sdk/client-transcribe-streaming'
 import type { TranscriptTurn } from '@transcribe/shared'
 
 // The parts of Transcribe's batch output JSON we use. Only the redacted file should be passed in.
@@ -48,6 +49,34 @@ export function parseTranscribeOutput(json: unknown): TranscriptTurn[] {
     const start = Number(item.start_time)
     const end = Number(item.end_time)
     const speaker = item.speaker_label ?? speakerAt.get(item.start_time!) ?? 'unknown'
+
+    if (last && last.speaker === speaker) {
+      last.text += ` ${content}`
+      last.end = end
+    } else {
+      turns.push({ speaker, start, end, text: content })
+    }
+  }
+  return turns
+}
+
+// Turns one final streaming result into turns. Speaker labels come per item ("0", "2", ...) and
+// aren't consecutive, so a single result can hold more than one speaker. Never pass partial results:
+// only final ones are redacted.
+export function turnsFromStreamItems(items: Item[]): TranscriptTurn[] {
+  const turns: TranscriptTurn[] = []
+  for (const item of items) {
+    const content = item.Content ?? ''
+    const last = turns.at(-1)
+
+    if (item.Type === 'punctuation') {
+      if (last) last.text += content
+      continue
+    }
+
+    const speaker = item.Speaker ? `spk_${item.Speaker}` : (last?.speaker ?? 'unknown')
+    const start = item.StartTime ?? last?.end ?? 0
+    const end = item.EndTime ?? start
 
     if (last && last.speaker === speaker) {
       last.text += ` ${content}`

@@ -108,13 +108,14 @@ export const ReviewRecord = z.object({
 // Live-mode WebSocket messages (/api/live). Audio is sent as binary messages, not JSON:
 // 16 kHz, 16-bit little-endian, mono PCM, roughly 100 ms per message.
 export const LiveClientMessage = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('start'), title: z.string().min(1), consent: z.literal(true) }),
+  z.object({ type: z.literal('start'), title: z.string().min(1), createdBy: z.string().min(1), consent: z.literal(true) }),
   z.object({ type: z.literal('stop') }),
 ])
 
 export const LiveServerMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session_started'), meetingId: z.string() }),
   z.object({ type: z.literal('caption'), turn: TranscriptTurn }), // final, redacted segments only
+  z.object({ type: z.literal('live_alert'), alert: LiveAlert }),
   z.object({ type: z.literal('error'), message: z.string() }),
   z.object({ type: z.literal('meeting_complete'), meetingId: z.string() }),
 ])
