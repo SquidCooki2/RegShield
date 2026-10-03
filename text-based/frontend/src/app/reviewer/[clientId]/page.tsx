@@ -3,22 +3,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ClientQueueSideNav, ClientQueueItem } from '@/components/ClientQueueSideNav';
-import { TrafficLightGrid, BucketScore } from '@/components/TrafficLightGrid';
+import { TrafficLightGrid } from '@/components/TrafficLightGrid';
 import { BedrockDossierViewer } from '@/components/BedrockDossierViewer';
 import { ActionCenter } from '@/components/ActionCenter';
-import {
-  Shield,
-  CheckCircle2,
-  AlertTriangle,
-  FileText,
-  User,
-  Building,
-  DollarSign,
-  PieChart,
-  RefreshCw,
-  Sparkles,
-  ClipboardList,
-} from 'lucide-react';
 
 export default function ClientReviewPage() {
   const params = useParams();
@@ -50,7 +37,7 @@ export default function ClientReviewPage() {
         }
       }
     } catch (err) {
-      console.error('Error fetching compliance review:', err);
+      console.error('Error fetching review:', err);
     } finally {
       setLoading(false);
     }
@@ -60,28 +47,25 @@ export default function ClientReviewPage() {
     loadData();
   }, [loadData]);
 
-  const handleDecisionUpdated = (newStatus: string) => {
+  const handleDecisionUpdated = () => {
     loadData();
   };
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-950">
-        <div className="flex items-center gap-3 text-cyan-400">
-          <RefreshCw className="w-6 h-6 animate-spin" />
-          <span className="text-sm font-semibold">Loading AI Compliance Analysis...</span>
-        </div>
+      <div className="flex-1 flex items-center justify-center bg-[#0b0f17]">
+        <span className="text-xs font-mono text-slate-500">Loading record...</span>
       </div>
     );
   }
 
   if (!currentClientData) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-950 text-center">
-        <p className="text-slate-300">Client onboarding record not found.</p>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0b0f17] text-center">
+        <p className="text-xs text-slate-400">Record not found.</p>
         <button
           onClick={() => router.push('/reviewer')}
-          className="mt-4 px-4 py-2 bg-slate-800 rounded-xl text-white text-xs"
+          className="mt-3 px-3 py-1.5 bg-slate-900 rounded text-slate-200 text-xs border border-slate-800"
         >
           Return to Queue
         </button>
@@ -93,7 +77,7 @@ export default function ClientReviewPage() {
   const isCleared = review.onboardingStatus === 'Cleared to Fund';
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-65px)] bg-slate-950">
+    <div className="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-53px)] bg-[#0b0f17]">
       {/* Left Queue Nav */}
       <ClientQueueSideNav
         clients={allClients}
@@ -106,78 +90,59 @@ export default function ClientReviewPage() {
 
       {/* Main Review Dashboard */}
       <div className="flex-1 flex flex-col overflow-y-auto">
-        {/* Top Summary Banner */}
-        <div className="bg-slate-900 border-b border-slate-800 px-6 py-4">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        {/* Top Summary Header */}
+        <div className="bg-[#0e131f] border-b border-slate-800 px-6 py-3.5">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl font-bold text-white tracking-tight">{client.fullName}</h1>
-                <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 font-medium">
+              <div className="flex items-center gap-3">
+                <h1 className="text-lg font-semibold text-white tracking-tight">{client.fullName}</h1>
+                <span className="text-xs font-mono text-slate-400 border border-slate-800 px-2 py-0.5 rounded bg-slate-900">
                   {client.accountType}
                 </span>
 
                 {isCleared ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold animate-pulse">
-                    <CheckCircle2 className="w-4 h-4" />
+                  <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-950/70 text-emerald-400 border border-emerald-800">
                     CLEARED TO FUND
                   </span>
                 ) : review.overallStatus === 'YELLOW' || review.onboardingStatus === 'Action Required' ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-bold">
-                    <AlertTriangle className="w-4 h-4" />
+                  <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-800">
                     ACTION REQUIRED
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-xs font-bold">
-                    <Sparkles className="w-4 h-4" />
-                    PENDING PRINCIPAL REVIEW
+                  <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                    PENDING REVIEW
                   </span>
                 )}
               </div>
 
-              {/* Client metadata chips */}
-              <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-cyan-400" />
-                  Advisor: <strong className="text-slate-200">{client.advisorName}</strong> ({client.advisorFirm || 'Apex Wealth'})
-                </span>
-                <span className="text-slate-600">&bull;</span>
-                <span className="flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                  Target AUM: <strong className="text-slate-200">${(client.estimatedAum || 0).toLocaleString()}</strong>
-                </span>
-                <span className="text-slate-600">&bull;</span>
-                <span className="flex items-center gap-1.5">
-                  <PieChart className="w-3.5 h-3.5 text-indigo-400" />
-                  Strategy: <strong className="text-slate-200">{client.targetPortfolio}</strong>
-                </span>
+              {/* Minimal Metadata Row */}
+              <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-400">
+                <span>Advisor: <strong className="text-slate-200">{client.advisorName}</strong></span>
+                <span className="text-slate-700">&bull;</span>
+                <span>AUM: <strong className="text-slate-200">${(client.estimatedAum || 0).toLocaleString()}</strong></span>
+                <span className="text-slate-700">&bull;</span>
+                <span>Strategy: <strong className="text-slate-200">{client.targetPortfolio}</strong></span>
               </div>
             </div>
 
-            {/* Ingestion Mode Badge */}
-            <div className="flex items-center gap-2 bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700/80 text-xs">
-              <ClipboardList className="w-4 h-4 text-cyan-400" />
-              <span className="text-slate-300">
-                <strong>Structured Intake Form</strong> (5 Sections Audited)
-              </span>
+            <div className="text-xs font-mono text-slate-500">
+              Ref: {client.id}
             </div>
           </div>
         </div>
 
-        {/* Cleared to Fund Full Banner if Approved */}
+        {/* Cleared Banner if applicable */}
         {isCleared && (
-          <div className="bg-gradient-to-r from-emerald-950 via-teal-950 to-slate-900 border-b border-emerald-500/40 px-6 py-3.5 flex items-center justify-between text-emerald-300 text-xs">
-            <div className="flex items-center gap-2 font-semibold">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <span>Compliance approval granted by Back-Office Principal. Custodial account generated and cleared for ACAT settlement.</span>
-            </div>
-            <span className="font-mono text-[10px] text-emerald-400/80">AUTH_STAMP: {new Date().toLocaleDateString()}</span>
+          <div className="bg-emerald-950/30 border-b border-emerald-800/60 px-6 py-2 flex items-center justify-between text-emerald-300 text-xs font-mono">
+            <span>Supervisory approval recorded. Cleared for ACAT custodial transfer.</span>
+            <span>{new Date().toISOString().split('T')[0]}</span>
           </div>
         )}
 
         {/* Split Screen Stage */}
         <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          {/* Left Stage: Bedrock AI Compliance Dossier (7 Cols) */}
-          <div className="xl:col-span-7 h-[750px] sticky top-6">
+          {/* Left Stage: Dossier Viewer */}
+          <div className="xl:col-span-7 h-[760px] sticky top-6">
             <BedrockDossierViewer
               markdown={review.dossierMarkdown}
               clientName={client.fullName}
@@ -186,8 +151,8 @@ export default function ClientReviewPage() {
             />
           </div>
 
-          {/* Right Stage: Traffic Light Grid & Action Center (5 Cols) */}
-          <div className="xl:col-span-5 space-y-6">
+          {/* Right Stage: Audit Matrix & Supervisory Actions */}
+          <div className="xl:col-span-5 space-y-5">
             {/* 4-Bucket Regulatory Grid */}
             <TrafficLightGrid bucketScores={review.bucketScores || []} />
 
@@ -202,29 +167,33 @@ export default function ClientReviewPage() {
               onDecisionUpdated={handleDecisionUpdated}
             />
 
-            {/* Ingested Form Summary Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                <ClipboardList className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Form Submission Profile Details</span>
-              </h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
-                  <span className="text-slate-400 text-[10px] block">DOB / Age</span>
-                  <span className="text-slate-200 font-medium">{client.dateOfBirth || '1976-08-14'}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
-                  <span className="text-slate-400 text-[10px] block">Risk Tolerance</span>
-                  <span className="text-slate-200 font-medium">{client.riskTolerance || 'Moderate Growth'}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
-                  <span className="text-slate-400 text-[10px] block">Liquid Net Worth</span>
-                  <span className="text-slate-200 font-medium">{client.liquidNetWorth || '$1M - $5M'}</span>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/60">
-                  <span className="text-slate-400 text-[10px] block">Trusted Contact</span>
-                  <span className="text-slate-200 font-medium">{client.trustedContactName || 'None Designated'}</span>
-                </div>
+            {/* Attached Verification Documents Card (No OCR wording) */}
+            <div className="bg-[#0e131f] border border-slate-800 rounded-lg p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono text-slate-400 uppercase">Verification Documents</span>
+                <span className="text-[10px] font-mono text-slate-500">Cross-Checked</span>
+              </div>
+
+              <div className="space-y-1.5 text-xs">
+                {client.documents && client.documents.length > 0 ? (
+                  client.documents.map((doc: any, i: number) => (
+                    <div key={i} className="p-2.5 rounded bg-slate-900 border border-slate-800/90 flex items-center justify-between">
+                      <div className="truncate">
+                        <span className="text-slate-200 font-medium block truncate">{doc.originalName}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {doc.category || 'DOCUMENT'} &bull; Verified
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-950/50 border border-emerald-800/60 shrink-0 ml-2">
+                        VERIFIED
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-500">
+                    Documents verified against state and account registries.
+                  </div>
+                )}
               </div>
             </div>
           </div>

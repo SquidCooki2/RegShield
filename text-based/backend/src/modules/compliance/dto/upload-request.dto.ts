@@ -1,7 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsBoolean } from 'class-validator';
 
 export class CreateClientSubmissionDto {
-  // 1. Client Identity & Personal Details
+  // 1. Identity & CIP
   @IsString()
   @IsNotEmpty()
   fullName: string;
@@ -51,7 +51,7 @@ export class CreateClientSubmissionDto {
   @IsOptional()
   trustDate?: string;
 
-  // 3. Financial & Investment Profile (Reg BI / Suitability)
+  // 3. Reg BI / Suitability
   @IsString()
   @IsNotEmpty()
   targetPortfolio: string;
@@ -70,7 +70,7 @@ export class CreateClientSubmissionDto {
 
   @IsString()
   @IsOptional()
-  riskTolerance?: string; // Conservative, Moderate, Aggressive
+  riskTolerance?: string;
 
   @IsString()
   @IsOptional()
@@ -82,13 +82,13 @@ export class CreateClientSubmissionDto {
 
   @IsString()
   @IsOptional()
-  sourceOfWealth?: string; // Employment, Business Sale, Inheritance, Retirement Transfer
+  sourceOfWealth?: string;
 
   @IsString()
   @IsOptional()
-  transferringCustodian?: string; // Merrill Lynch, Charles Schwab, Fidelity, Vanguard
+  transferringCustodian?: string;
 
-  // 4. Senior & Vulnerable Investor Protections (FINRA 2165)
+  // 4. Senior Protections
   @IsString()
   @IsOptional()
   trustedContactName?: string;
@@ -101,7 +101,7 @@ export class CreateClientSubmissionDto {
   @IsOptional()
   trustedContactRelationship?: string;
 
-  // 5. Regulatory Disclosures & Consents
+  // 5. Disclosures & Consents
   @IsBoolean()
   @IsOptional()
   formCrsAcknowledged?: boolean;
@@ -114,7 +114,7 @@ export class CreateClientSubmissionDto {
   @IsOptional()
   privacyPolicyConsent?: boolean;
 
-  // 6. Advisor Credentials
+  // 6. Advisor Info
   @IsString()
   @IsNotEmpty()
   advisorName: string;

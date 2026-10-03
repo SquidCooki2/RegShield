@@ -2,6 +2,7 @@ import { ComplianceStatus, OnboardingStatus, BucketScore } from '../value-object
 
 export interface DocumentMetadata {
   id: string;
+  category: 'PHOTO_ID' | 'PROOF_OF_ADDRESS' | 'BROKERAGE_STATEMENT' | 'TRUST_AGREEMENT' | 'OTHER';
   originalName: string;
   mimeType: string;
   size: number;
@@ -9,6 +10,8 @@ export interface DocumentMetadata {
   s3Url?: string;
   uploadedAt: Date;
   extractedTextLength?: number;
+  ocrConfidence?: number;
+  extractedFields?: Record<string, string>;
 }
 
 export interface ClientEntity {
@@ -72,6 +75,13 @@ export interface ReviewEntity {
   dossierMarkdown: string;
   bucketScores: BucketScore[];
   flaggedAnomalies: string[];
+  ocrAuditSummary?: Array<{
+    documentType: string;
+    fileName: string;
+    matchScore: string;
+    crossCheckStatus: 'MATCH' | 'DISCREPANCY' | 'PENDING';
+    notes: string;
+  }>;
   reviewedBy?: string;
   reviewedAt?: Date;
   remediationNotes?: string[];
