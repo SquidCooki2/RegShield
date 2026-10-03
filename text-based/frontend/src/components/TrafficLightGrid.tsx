@@ -38,16 +38,22 @@ export function TrafficLightGrid({ bucketScores }: Props) {
     }
   };
 
+  // Clean category names by stripping "Bucket A:", "Bucket B:", etc.
+  const cleanCategoryTitle = (title: string) => {
+    return title.replace(/^Bucket\s+[A-D]:\s*/i, '').trim();
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-        <span className="text-xs font-semibold text-slate-200 tracking-tight">Regulatory Check Matrix</span>
-        <span className="text-[11px] font-mono text-slate-500">4 Audit Buckets</span>
+        <span className="text-xs font-semibold text-slate-200 tracking-tight">Compliance Summary</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {bucketScores.map((b, idx) => {
           const visuals = getStatusVisuals(b.status);
+          const categoryTitle = cleanCategoryTitle(b.title);
+
           return (
             <div
               key={idx}
@@ -55,7 +61,7 @@ export function TrafficLightGrid({ bucketScores }: Props) {
             >
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-xs text-white">{b.title}</span>
+                  <span className="font-medium text-xs text-white">{categoryTitle}</span>
                   <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono border ${visuals.badge}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${visuals.dot}`} />
                     {visuals.label}

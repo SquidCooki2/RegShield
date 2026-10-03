@@ -90,7 +90,7 @@ export default function ClientReviewPage() {
 
       {/* Main Review Dashboard */}
       <div className="flex-1 flex flex-col overflow-y-auto">
-        {/* Top Summary Header */}
+        {/* Top Summary Header without Ref: ID */}
         <div className="bg-[#0e131f] border-b border-slate-800 px-6 py-3.5">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div>
@@ -124,17 +124,13 @@ export default function ClientReviewPage() {
                 <span>Strategy: <strong className="text-slate-200">{client.targetPortfolio}</strong></span>
               </div>
             </div>
-
-            <div className="text-xs font-mono text-slate-500">
-              Ref: {client.id}
-            </div>
           </div>
         </div>
 
         {/* Cleared Banner if applicable */}
         {isCleared && (
           <div className="bg-emerald-950/30 border-b border-emerald-800/60 px-6 py-2 flex items-center justify-between text-emerald-300 text-xs font-mono">
-            <span>Supervisory approval recorded. Cleared for ACAT custodial transfer.</span>
+            <span>Approval recorded. Cleared for ACAT custodial transfer.</span>
             <span>{new Date().toISOString().split('T')[0]}</span>
           </div>
         )}
@@ -151,9 +147,9 @@ export default function ClientReviewPage() {
             />
           </div>
 
-          {/* Right Stage: Audit Matrix & Supervisory Actions */}
+          {/* Right Stage: Compliance Summary & Actions */}
           <div className="xl:col-span-5 space-y-5">
-            {/* 4-Bucket Regulatory Grid */}
+            {/* Compliance Summary Grid */}
             <TrafficLightGrid bucketScores={review.bucketScores || []} />
 
             {/* Principal Action Center */}
@@ -167,11 +163,10 @@ export default function ClientReviewPage() {
               onDecisionUpdated={handleDecisionUpdated}
             />
 
-            {/* Attached Verification Documents Card (No OCR wording) */}
+            {/* Attached Verification Documents Card (Without 'Cross-Checked' label) */}
             <div className="bg-[#0e131f] border border-slate-800 rounded-lg p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-mono text-slate-400 uppercase">Verification Documents</span>
-                <span className="text-[10px] font-mono text-slate-500">Cross-Checked</span>
               </div>
 
               <div className="space-y-1.5 text-xs">

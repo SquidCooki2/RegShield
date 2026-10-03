@@ -21,9 +21,7 @@ export function BedrockDossierViewer({ markdown, clientName, accountType, isMism
       {/* Document Controls Bar */}
       <div className="bg-[#0d121c] border-b border-slate-800/90 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wide">Document Viewer</span>
-          <span className="text-slate-600">&bull;</span>
-          <span className="text-[11px] font-mono text-slate-500">Supervisory Memorandum</span>
+          <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wide">Compliance Report</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -40,15 +38,15 @@ export function BedrockDossierViewer({ markdown, clientName, accountType, isMism
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#070a10]">
         <div className="max-w-3xl mx-auto bg-[#0d121c] text-slate-200 rounded border border-slate-800/90 p-8 sm:p-10 font-sans shadow-lg">
           
-          {/* Institutional Memorandum Header */}
+          {/* Memorandum Header */}
           <div className="border-b-2 border-slate-700 pb-5 mb-6">
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] font-mono tracking-widest text-slate-400 uppercase">
-                  LPL Financial Compliance &amp; Regulatory Supervision
+                  LPL Financial Compliance &amp; Regulatory Review
                 </div>
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight mt-1">
-                  COMPLIANCE SUPERVISORY AUDIT MEMORANDUM
+                  COMPLIANCE AUDIT REPORT
                 </h1>
               </div>
 
@@ -65,25 +63,25 @@ export function BedrockDossierViewer({ markdown, clientName, accountType, isMism
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-800/80 text-[11px] font-mono text-slate-400">
               <div>
-                <span className="text-slate-500 block text-[10px]">RECORD REF</span>
-                <span className="text-slate-200">AUD-2026-{clientName.slice(0, 3).toUpperCase()}</span>
+                <span className="text-slate-500 block text-[10px]">CLIENT</span>
+                <span className="text-slate-200">{clientName}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px]">AUDIT DATE</span>
+                <span className="text-slate-500 block text-[10px]">DATE</span>
                 <span className="text-slate-200">{new Date().toISOString().split('T')[0]}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px]">TENANCY TYPE</span>
+                <span className="text-slate-500 block text-[10px]">ACCOUNT TYPE</span>
                 <span className="text-slate-200">{accountType}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px]">SECURITY LEVEL</span>
-                <span className="text-slate-200">PRIVILEGED</span>
+                <span className="text-slate-500 block text-[10px]">STATUS</span>
+                <span className="text-slate-200">{isMismatch ? 'REVIEW' : 'VERIFIED'}</span>
               </div>
             </div>
           </div>
 
-          {/* Official Formatted Markdown with GFM Table Support */}
+          {/* Formatted Markdown */}
           <div className="markdown-document space-y-4 text-xs leading-relaxed text-slate-300">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -174,13 +172,13 @@ export function BedrockDossierViewer({ markdown, clientName, accountType, isMism
             </ReactMarkdown>
           </div>
 
-          {/* Official Audit Sign-Off Footer */}
+          {/* Audit Footer */}
           <div className="mt-10 pt-4 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-500">
             <div>
-              <span>REGULATORY COMPLIANCE SYSTEM &bull; RECORD ID: {clientName.replace(/\s+/g, '-').toUpperCase()}</span>
+              <span>REGULATORY AUDIT REPORT &bull; {clientName.toUpperCase()}</span>
             </div>
             <div>
-              <span>CONFIDENTIAL &bull; FOR SUPERVISORY USE ONLY</span>
+              <span>CONFIDENTIAL</span>
             </div>
           </div>
 

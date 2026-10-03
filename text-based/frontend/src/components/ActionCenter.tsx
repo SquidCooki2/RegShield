@@ -38,7 +38,7 @@ export function ActionCenter({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
-          reviewerName: 'Compliance Principal',
+          reviewerName: 'Compliance Reviewer',
           reviewerNotes: `Decision: ${action}`,
         }),
       });
@@ -80,8 +80,7 @@ export function ActionCenter({
   return (
     <div className="p-4 rounded-lg bg-[#0e131f] border border-slate-800 space-y-3">
       <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-        <span className="text-xs font-semibold text-slate-200 tracking-tight">Supervisory Actions</span>
-        <span className="text-[11px] font-mono text-slate-500">Sign-Off</span>
+        <span className="text-xs font-semibold text-slate-200 tracking-tight">Actions</span>
       </div>
 
       {/* Action Buttons */}
