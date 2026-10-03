@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Avatar,
-  Badge,
   Box,
   Button,
   Center,
@@ -15,7 +14,6 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { LuShieldAlert } from "react-icons/lu";
 import { ColorModeButton } from "./components/ui/color-mode";
 import { TranscribeWorkspace } from "./components/TranscribeWorkspace";
 import { ComplianceQueue } from "./components/ComplianceQueue";
@@ -78,21 +76,22 @@ function Dashboard({ user }: { user: UserProfile }) {
       >
         <Container maxW="7xl">
           <Flex justify="space-between" align="center" gap={4} wrap="wrap">
-            <HStack gap={3}>
-              <Center boxSize={10} bg="blue.600" color="white" borderRadius="xl">
-                <LuShieldAlert size={22} />
+            <HStack gap={2.5}>
+              <Center
+                boxSize="28px"
+                bg="white"
+                color="#0f172a"
+                borderRadius="md"
+                fontWeight="bold"
+                fontSize="xs"
+                letterSpacing="-0.02em"
+                _dark={{ bg: "white", color: "#0f172a" }}
+              >
+                RS
               </Center>
-              <Box>
-                <HStack gap={2}>
-                  <Heading size="md">RegShield</Heading>
-                  <Badge colorPalette="blue" variant="subtle" borderRadius="full">
-                    AI Compliance Co-Pilot
-                  </Badge>
-                </HStack>
-                <Text fontSize="xs" color="fg.muted">
-                  Supervisory surveillance and WORM storage
-                </Text>
-              </Box>
+              <Heading size="sm" fontWeight="semibold" letterSpacing="-0.01em">
+                RegShield
+              </Heading>
             </HStack>
 
             <HStack gap={4}>

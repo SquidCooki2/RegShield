@@ -31,14 +31,14 @@ export default function RootLayout({
                 href="/advisor"
                 className="px-3 py-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
               >
-                Advisor Intake
+                Advisor
               </Link>
               <div className="w-px h-3.5 bg-slate-800" />
               <Link
                 href="/reviewer"
                 className="px-3 py-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
               >
-                Reviewer Queue
+                Reviewer
               </Link>
             </nav>
           </div>
