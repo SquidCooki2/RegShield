@@ -1,30 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Card,
+  Collapsible,
   Field,
   Flex,
   Grid,
   GridItem,
   HStack,
-  Separator,
   Spinner,
   Text,
   Textarea,
   VStack,
 } from "@chakra-ui/react";
-import {
-  LuArrowUpRight,
-  LuCircleCheck,
-  LuClock,
-  LuPause,
-  LuPlay,
-  LuRefreshCw,
-  LuShieldAlert,
-} from "react-icons/lu";
+import { LuChevronDown, LuPause, LuPlay, LuRefreshCw } from "react-icons/lu";
 import { toaster } from "@/components/ui/toaster";
 import { PanelHeader } from "./PanelHeader";
 import { errorMessage, sendJson } from "@/lib/api";
@@ -64,6 +55,28 @@ const seekAndPlay = (audio: HTMLAudioElement, seconds: number) => {
   if (audio.readyState >= 1) go();
   else audio.addEventListener("loadedmetadata", go, { once: true });
 };
+
+/** A dot plus the risk word. Color carries severity and nothing else in this panel. */
+const Risk: React.FC<{ level: string }> = ({ level }) => (
+  <HStack gap={1.5} colorPalette={riskPalette(level as never)} flexShrink={0}>
+    <Box boxSize={2} borderRadius="full" bg="colorPalette.solid" />
+    <Text fontSize="xs" color="fg.muted" textTransform="capitalize">
+      {level} risk
+    </Text>
+  </HStack>
+);
+
+/** Secondary sections stay closed until the reviewer wants them. */
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <Collapsible.Root>
+    <Collapsible.Trigger asChild>
+      <Button variant="plain" size="sm" px={0} h="auto" fontWeight="medium" color="fg">
+        {title} <LuChevronDown />
+      </Button>
+    </Collapsible.Trigger>
+    <Collapsible.Content pt={3}>{children}</Collapsible.Content>
+  </Collapsible.Root>
+);
 
 export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer }) => {
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -165,31 +178,29 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
 
   return (
     <Card.Root variant="outline">
-      <Card.Header>
+      <Card.Header pb={0}>
         <PanelHeader
-          palette="red"
-          icon={<LuShieldAlert size={20} />}
-          title="Supervisory review queue"
-          subtitle="Flagged meetings with time-aligned audio evidence"
+          title="Review queue"
+          subtitle="Flagged meetings, with audio at the moment of each flag"
           right={
-            <Button size="xs" variant="outline" onClick={fetchQueue} loading={isLoading}>
+            <Button size="xs" variant="ghost" onClick={fetchQueue} loading={isLoading}>
               <LuRefreshCw size={12} /> Refresh
             </Button>
           }
         />
       </Card.Header>
 
-      <Card.Body>
-        <Grid templateColumns={{ base: "minmax(0, 1fr)", lg: "minmax(0, 5fr) minmax(0, 7fr)" }} gap={6}>
+      <Card.Body pt={6}>
+        <Grid templateColumns={{ base: "minmax(0, 1fr)", lg: "minmax(0, 4fr) minmax(0, 8fr)" }} gap={10}>
           {/* Queue list */}
-          <GridItem pr={{ lg: 6 }} borderRightWidth={{ base: 0, lg: "1px" }}>
-            <Text fontSize="sm" fontWeight="semibold" mb={3}>
-              Needs review ({queue.length})
+          <GridItem>
+            <Text fontSize="sm" color="fg.muted" mb={2}>
+              {queue.length} waiting
             </Text>
-            <VStack align="stretch" gap={2} maxH="65vh" overflowY="auto">
+            <VStack align="stretch" gap={0} maxH="70vh" overflowY="auto" borderTopWidth="1px">
               {queue.length === 0 && !isLoading && (
-                <Text fontSize="sm" color="fg.muted">
-                  No meetings need review. Flagged meetings appear here once their analysis finishes.
+                <Text fontSize="sm" color="fg.muted" py={6}>
+                  Nothing to review. Flagged meetings show up here once analysis finishes.
                 </Text>
               )}
               {queue.map((item) => {
@@ -200,33 +211,27 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                     as="button"
                     w="full"
                     textAlign="left"
-                    p={3.5}
-                    borderRadius="lg"
-                    borderWidth="1px"
-                    colorPalette="blue"
-                    borderColor={active ? "colorPalette.solid" : "border"}
-                    bg={active ? "colorPalette.subtle" : "transparent"}
-                    _hover={{ borderColor: "colorPalette.solid" }}
+                    py={3.5}
+                    pl={active ? 3 : 0}
+                    pr={2}
+                    borderBottomWidth="1px"
+                    borderLeftWidth={active ? "3px" : "0"}
+                    borderLeftColor="fg"
+                    bg={active ? "bg.muted" : "transparent"}
+                    _hover={{ bg: "bg.muted" }}
                     aria-pressed={active}
                     onClick={() => setSelectedId(item.meetingId)}
                   >
-                    <Flex justify="space-between" align="center" gap={2} mb={1.5}>
-                      <Text fontWeight="semibold" fontSize="sm" truncate>
+                    <Flex justify="space-between" align="center" gap={3}>
+                      <Text fontWeight="medium" fontSize="sm" truncate>
                         {item.title}
                       </Text>
-                      <Badge colorPalette={riskPalette(item.overallRisk)} size="sm" flexShrink={0}>
-                        {item.overallRisk} risk
-                      </Badge>
+                      <Risk level={item.overallRisk} />
                     </Flex>
-                    <HStack gap={2} fontSize="xs" color="fg.muted">
-                      <Badge variant="outline" size="sm">
-                        {item.mode === "live" ? "Live" : "Recorded"}
-                      </Badge>
-                      <Text truncate>
-                        {item.flagCount} {item.flagCount === 1 ? "flag" : "flags"} · {item.createdBy} ·{" "}
-                        {formatDate(item.createdAt)}
-                      </Text>
-                    </HStack>
+                    <Text fontSize="xs" color="fg.muted" mt={1} truncate>
+                      {item.flagCount} {item.flagCount === 1 ? "flag" : "flags"}, {item.createdBy},{" "}
+                      {formatDate(item.createdAt)}
+                    </Text>
                   </Box>
                 );
               })}
@@ -236,9 +241,11 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
           {/* Case detail */}
           <GridItem>
             {!selected ? (
-              <VStack py={16} gap={2} color="fg.muted" textAlign="center">
-                <LuClock size={32} />
-                <Text fontSize="sm">Select a meeting to review its flags and audio.</Text>
+              <VStack py={20} gap={1} color="fg.muted" textAlign="center">
+                <Text fontWeight="medium" color="fg">
+                  No meeting selected
+                </Text>
+                <Text fontSize="sm">Pick one from the list to see its flags and audio.</Text>
               </VStack>
             ) : detailError ? (
               <Alert.Root status="error">
@@ -249,25 +256,23 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                 </Alert.Content>
               </Alert.Root>
             ) : !detail ? (
-              <VStack py={16}>
+              <VStack py={20}>
                 <Spinner />
               </VStack>
             ) : (
-              <VStack align="stretch" gap={5}>
-                <Flex justify="space-between" align="center" gap={3}>
-                  <Box minW={0}>
-                    <Text fontWeight="semibold" truncate>
+              <VStack align="stretch" gap={8}>
+                <Box>
+                  <Flex justify="space-between" align="baseline" gap={3}>
+                    <Text fontSize="lg" fontWeight="semibold" truncate>
                       {detail.title}
                     </Text>
-                    <Text fontSize="xs" color="fg.muted">
-                      {detail.mode === "live" ? "Live meeting" : "Recorded meeting"} by {detail.createdBy},{" "}
-                      {formatDate(detail.createdAt)}
-                    </Text>
-                  </Box>
-                  <Badge colorPalette={riskPalette(detail.overallRisk)} variant="subtle" size="md">
-                    {detail.overallRisk} risk
-                  </Badge>
-                </Flex>
+                    <Risk level={detail.overallRisk} />
+                  </Flex>
+                  <Text fontSize="sm" color="fg.muted" mt={0.5}>
+                    {detail.mode === "live" ? "Live" : "Recorded"} by {detail.createdBy} on{" "}
+                    {formatDate(detail.createdAt)}
+                  </Text>
+                </Box>
 
                 {detail.audioUrl ? (
                   <audio
@@ -287,53 +292,43 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                     }
                   />
                 ) : (
-                  <Text fontSize="xs" color="fg.muted">
+                  <Text fontSize="sm" color="fg.muted">
                     Audio isn't available for this meeting.
                   </Text>
                 )}
 
-                <Separator />
-
-                <VStack align="stretch" gap={3}>
-                  <Text fontSize="sm" fontWeight="semibold">
-                    Compliance flags ({detail.flags.length})
+                <VStack align="stretch" gap={0}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={3}>
+                    Flags ({detail.flags.length})
                   </Text>
                   {detail.flags.map((flag, idx) => (
                     <Box
                       key={idx}
                       colorPalette={riskPalette(flag.severity)}
-                      p={4}
-                      borderRadius="lg"
-                      borderWidth="1px"
-                      borderColor="colorPalette.muted"
-                      bg="colorPalette.subtle"
+                      borderLeftWidth="3px"
+                      borderLeftColor="colorPalette.solid"
+                      pl={4}
+                      py={3}
+                      mb={4}
                     >
-                      <Flex justify="space-between" align="center" gap={2} wrap="wrap">
-                        <HStack gap={2} wrap="wrap">
-                          <Badge colorPalette={riskPalette(flag.severity)} size="sm">
-                            {flag.severity}
-                          </Badge>
-                          <Text fontSize="sm" fontWeight="semibold">
-                            {flag.ruleId}: {flag.ruleName}
-                          </Text>
-                          <Badge variant="outline" size="sm">
-                            {ROLE_LABEL[flag.speakerRole]}
-                          </Badge>
-                        </HStack>
+                      <Flex justify="space-between" align="baseline" gap={3} wrap="wrap">
+                        <Text fontSize="sm" fontWeight="semibold">
+                          {flag.ruleName}
+                        </Text>
                         <Button
                           size="xs"
-                          variant="subtle"
-                          colorPalette="blue"
+                          variant="ghost"
                           disabled={!detail.audioUrl}
                           onClick={() => toggleFlagAudio(idx, flag.timestampSeconds)}
                         >
-                          {playingFlag === idx ? <LuPause size={11} /> : <LuPlay size={11} />}
-                          {playingFlag === idx
-                            ? `Pause (${formatTime(flag.timestampSeconds)})`
-                            : `Play at ${formatTime(flag.timestampSeconds)}`}
+                          {playingFlag === idx ? <LuPause size={12} /> : <LuPlay size={12} />}
+                          {playingFlag === idx ? "Pause" : "Play"} at {formatTime(flag.timestampSeconds)}
                         </Button>
                       </Flex>
-                      <Text fontSize="sm" fontFamily="mono" fontWeight="medium" color="colorPalette.fg" mt={3}>
+                      <Text fontSize="xs" color="fg.muted">
+                        {flag.ruleId}, {flag.severity} severity, said by {ROLE_LABEL[flag.speakerRole].toLowerCase()}
+                      </Text>
+                      <Text fontSize="md" mt={3} fontStyle="italic">
                         "{flag.quote}"
                       </Text>
                       {!flag.quoteVerified && (
@@ -345,70 +340,51 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                         {flag.explanation}
                       </Text>
                       <Text fontSize="sm" color="fg.muted" mt={1.5}>
-                        <Text as="span" fontWeight="semibold" color="fg">
-                          Suggested action:
-                        </Text>{" "}
-                        {flag.suggestedAction}
+                        Suggested action: {flag.suggestedAction}
                       </Text>
                     </Box>
                   ))}
                 </VStack>
 
                 {detail.liveAlerts.length > 0 && (
-                  <VStack align="stretch" gap={2}>
-                    <Text fontSize="sm" fontWeight="semibold">
-                      Alerts shown to the advisor during the meeting ({detail.liveAlerts.length})
-                    </Text>
-                    {detail.liveAlerts.map((alert, idx) => (
-                      <Text key={idx} fontSize="sm">
-                        <Text as="span" fontFamily="mono" color="fg.muted">
-                          [{formatTime(alert.timestampSeconds)}] {alert.ruleId}
-                        </Text>{" "}
-                        {alert.nudge}
-                      </Text>
-                    ))}
-                  </VStack>
+                  <Section title={`Alerts shown during the meeting (${detail.liveAlerts.length})`}>
+                    <VStack align="stretch" gap={1.5}>
+                      {detail.liveAlerts.map((alert, idx) => (
+                        <Text key={idx} fontSize="sm">
+                          <Text as="span" color="fg.muted" fontVariantNumeric="tabular-nums">
+                            {formatTime(alert.timestampSeconds)} {alert.ruleId}
+                          </Text>{" "}
+                          {alert.nudge}
+                        </Text>
+                      ))}
+                    </VStack>
+                  </Section>
                 )}
 
-                <VStack align="stretch" gap={2}>
-                  <Text fontSize="sm" fontWeight="semibold">
-                    Redacted transcript
-                  </Text>
-                  <Box
-                    maxH="240px"
-                    overflowY="auto"
-                    p={3.5}
-                    bg="bg.muted"
-                    borderWidth="1px"
-                    borderRadius="lg"
-                    fontSize="xs"
-                    lineHeight="tall"
-                  >
+                <Section title="Redacted transcript">
+                  <Box maxH="260px" overflowY="auto" fontSize="sm" lineHeight="tall">
                     {detail.transcript.map((turn, idx) => (
-                      <Text key={idx} mb={2}>
-                        <Text as="span" fontWeight="bold" color="blue.fg">
-                          [{formatTime(turn.start)}] {speakerName(detail, turn.speaker)}:
-                        </Text>{" "}
-                        {turn.text}
-                      </Text>
+                      <Box key={idx} mb={3}>
+                        <Text fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
+                          {formatTime(turn.start)}{" "}
+                          <Text as="span" fontWeight="medium" color="fg">
+                            {speakerName(detail, turn.speaker)}
+                          </Text>
+                        </Text>
+                        <Text>{turn.text}</Text>
+                      </Box>
                     ))}
                   </Box>
-                </VStack>
+                </Section>
 
-                <VStack align="stretch" gap={2}>
-                  <Text fontSize="sm" fontWeight="semibold">
-                    Audit trail
-                  </Text>
-                  <VStack align="stretch" gap={1} fontSize="xs">
+                <Section title="Audit trail">
+                  <VStack align="stretch" gap={1.5} fontSize="sm">
                     {detail.audit.map((event, idx) => (
                       <Text key={idx}>
                         <Text as="span" color="fg.muted">
                           {formatDate(event.at)}
                         </Text>{" "}
-                        <Text as="span" fontWeight="medium">
-                          {event.action.replaceAll("_", " ")}
-                        </Text>{" "}
-                        by {event.actor}
+                        {event.action.replaceAll("_", " ")} by {event.actor}
                         {event.note && (
                           <Text as="span" color="fg.muted">
                             {" "}
@@ -418,39 +394,33 @@ export const ComplianceQueue: React.FC<{ reviewer: UserProfile }> = ({ reviewer 
                       </Text>
                     ))}
                   </VStack>
-                </VStack>
+                </Section>
 
-                <Box p={4} borderRadius="lg" bg="bg.muted" borderWidth="1px">
+                {/* Decision bar stays reachable while the reviewer scrolls the evidence. */}
+                <Box position="sticky" bottom={0} bg="bg.panel" borderTopWidth="1px" pt={4} pb={2}>
                   <Field.Root>
-                    <Field.Label>Reviewer note ({reviewer.name})</Field.Label>
+                    <Field.Label>Note from {reviewer.name}</Field.Label>
                     <Textarea
-                      size="sm"
-                      bg="bg.panel"
-                      rows={3}
+                      rows={2}
                       placeholder="Saved to the audit trail with your decision"
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       disabled={isSubmitting}
                     />
-                    <Field.HelperText>A note is required to escalate.</Field.HelperText>
+                    <Field.HelperText>Required to escalate.</Field.HelperText>
                   </Field.Root>
-                  <HStack gap={2} justify="flex-end" mt={4} wrap="wrap">
+                  <HStack gap={2} justify="flex-end" mt={3}>
                     <Button
                       size="sm"
+                      variant="outline"
                       colorPalette="red"
                       onClick={() => decide("escalate")}
                       disabled={isSubmitting || note.trim().length === 0}
                     >
-                      <LuArrowUpRight /> Escalate
+                      Escalate
                     </Button>
-                    <Button
-                      size="sm"
-                      colorPalette="green"
-                      variant="subtle"
-                      onClick={() => decide("approve")}
-                      disabled={isSubmitting}
-                    >
-                      <LuCircleCheck /> Approve
+                    <Button size="sm" onClick={() => decide("approve")} disabled={isSubmitting}>
+                      Approve
                     </Button>
                   </HStack>
                 </Box>

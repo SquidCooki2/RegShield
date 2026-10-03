@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Badge,
   Box,
   Button,
   Card,
@@ -14,7 +12,7 @@ import {
   Textarea,
   VStack,
 } from "@chakra-ui/react";
-import { LuCheck, LuCopy, LuFileCheck, LuSend, LuX } from "react-icons/lu";
+import { LuCheck, LuCopy, LuX } from "react-icons/lu";
 import { toaster } from "@/components/ui/toaster";
 import { PanelHeader } from "./PanelHeader";
 import type { UserProfile } from "@/types";
@@ -106,101 +104,91 @@ export const AdvisorSummaryView: React.FC<Props> = ({ review, user }) => {
     return (
       <Card.Root variant="outline" h="full">
         <Card.Header>
-          <PanelHeader icon={<LuFileCheck size={20} />} title="CRM summary" subtitle="Ready after the meeting audit" />
+          <PanelHeader title="CRM summary" subtitle="Ready after the meeting audit" />
         </Card.Header>
-        <Card.Body justifyContent="center" alignItems="center" textAlign="center" color="fg.muted" py={12}>
-          <Text fontSize="sm">Record or upload a meeting to generate its summary.</Text>
+        <Card.Body justifyContent="center" alignItems="center" textAlign="center" py={16} gap={1}>
+          <Text fontWeight="medium">No summary yet</Text>
+          <Text fontSize="sm" color="fg.muted">
+            Record or upload a meeting to generate one.
+          </Text>
         </Card.Body>
       </Card.Root>
     );
   }
 
   const flagCount = review.flags.length;
+  const locked = sync !== "idle";
 
   return (
     <Card.Root variant="outline" h="full">
-      <Card.Header>
+      <Card.Header pb={0}>
         <PanelHeader
-          icon={<LuFileCheck size={20} />}
           title="CRM summary"
           subtitle={review.title}
           right={
-            <Badge colorPalette={sync === "sent" ? "green" : "blue"} variant="subtle">
-              {sync === "sent" ? "Sent to CRM" : "Ready to review"}
-            </Badge>
+            sync === "sent" ? (
+              <Text fontSize="sm" color="green.fg">
+                Sent to CRM
+              </Text>
+            ) : undefined
           }
         />
       </Card.Header>
 
-      <Card.Body gap={5}>
-        {review.status === "needs_review" && (
-          <Alert.Root status="warning" size="sm">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Description>
-                {flagCount} compliance {flagCount === 1 ? "flag is" : "flags are"} awaiting supervisory review.
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-
-        <HStack gap={2} wrap="wrap">
-          <Badge colorPalette={riskPalette(review.overallRisk)} variant="subtle">
-            {review.overallRisk === "none" ? "No risk found" : `Overall risk: ${review.overallRisk}`}
-          </Badge>
-          <Badge variant="outline">{review.mode === "live" ? "Live meeting" : "Recorded meeting"}</Badge>
-        </HStack>
+      <Card.Body gap={7}>
+        <VStack align="stretch" gap={1.5}>
+          <HStack gap={1.5} colorPalette={riskPalette(review.overallRisk)}>
+            <Box boxSize={2} borderRadius="full" bg="colorPalette.solid" />
+            <Text fontSize="sm">
+              {review.overallRisk === "none" ? "No risk found" : `${review.overallRisk} risk`}
+              <Text as="span" color="fg.muted">
+                {" "}
+                from a {review.mode === "live" ? "live" : "recorded"} meeting
+              </Text>
+            </Text>
+          </HStack>
+          {review.status === "needs_review" && (
+            <Text fontSize="sm" color="fg.muted">
+              {flagCount} {flagCount === 1 ? "flag is" : "flags are"} waiting for supervisory review.
+            </Text>
+          )}
+        </VStack>
 
         <Field.Root>
           <Field.Label>Meeting summary</Field.Label>
-          <Textarea
-            size="sm"
-            rows={4}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            disabled={sync !== "idle"}
-          />
+          <Textarea rows={5} value={summary} onChange={(e) => setSummary(e.target.value)} disabled={locked} />
         </Field.Root>
 
-        <VStack align="stretch" gap={2}>
-          <Text fontSize="sm" fontWeight="medium">
-            Follow-up action items ({items.length})
+        <VStack align="stretch" gap={0}>
+          <Text fontSize="sm" fontWeight="medium" mb={2}>
+            Follow-ups ({items.length})
           </Text>
-          {items.map((item) => (
-            <Flex
-              key={item.id}
-              justify="space-between"
-              align="center"
-              gap={2}
-              pl={3}
-              pr={1}
-              py={1}
-              bg="bg.muted"
-              borderRadius="md"
-            >
-              <Text fontSize="sm">{item.text}</Text>
-              <IconButton
-                size="xs"
-                variant="ghost"
-                colorPalette="red"
-                aria-label={`Remove action item: ${item.text}`}
-                disabled={sync !== "idle"}
-                onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))}
-              >
-                <LuX />
-              </IconButton>
-            </Flex>
-          ))}
-          <HStack>
+          <Box borderTopWidth="1px">
+            {items.map((item) => (
+              <Flex key={item.id} justify="space-between" align="center" gap={2} py={2} borderBottomWidth="1px">
+                <Text fontSize="sm">{item.text}</Text>
+                <IconButton
+                  size="2xs"
+                  variant="ghost"
+                  aria-label={`Remove action item: ${item.text}`}
+                  disabled={locked}
+                  onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))}
+                >
+                  <LuX />
+                </IconButton>
+              </Flex>
+            ))}
+          </Box>
+          <HStack mt={3}>
             <Input
               size="sm"
-              placeholder="Add an action item"
+              placeholder="Send the updated beneficiary form"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addItem()}
-              disabled={sync !== "idle"}
+              disabled={locked}
             />
-            <Button size="sm" variant="outline" onClick={addItem} disabled={!draft.trim() || sync !== "idle"}>
+            <Button size="sm" variant="outline" onClick={addItem} disabled={!draft.trim() || locked}>
               Add
             </Button>
           </HStack>
@@ -209,17 +197,10 @@ export const AdvisorSummaryView: React.FC<Props> = ({ review, user }) => {
         <Box flex="1" />
 
         <HStack gap={2}>
-          <Button
-            flex="1"
-            size="sm"
-            colorPalette="blue"
-            onClick={sendToCrm}
-            loading={sync === "sending"}
-            disabled={sync === "sent"}
-          >
-            <LuSend /> {sync === "sent" ? "Sent to CRM" : "Approve and send to CRM"}
+          <Button flex="1" onClick={sendToCrm} loading={sync === "sending"} disabled={sync === "sent"}>
+            {sync === "sent" ? "Sent to CRM" : "Approve and send to CRM"}
           </Button>
-          <IconButton size="sm" variant="outline" aria-label="Copy payload as JSON" onClick={copyPayload}>
+          <IconButton variant="outline" aria-label="Copy payload as JSON" onClick={copyPayload}>
             {copied ? <LuCheck /> : <LuCopy />}
           </IconButton>
         </HStack>

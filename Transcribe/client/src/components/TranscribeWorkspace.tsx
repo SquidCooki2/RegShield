@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Badge,
   Box,
   Button,
   Card,
@@ -19,7 +17,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { LuCircle, LuCircleCheck, LuCloudUpload, LuFileAudio, LuLock, LuMic, LuRadio, LuSquare } from "react-icons/lu";
+import { LuCircle, LuCircleCheck, LuCloudUpload } from "react-icons/lu";
 import { toaster } from "@/components/ui/toaster";
 import { PanelHeader } from "./PanelHeader";
 import { useLiveMeeting } from "@/hooks/useLiveMeeting";
@@ -209,146 +207,104 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
         ? `Recording ${formatTime(meeting.elapsedSeconds)}`
         : meeting.status === "analyzing"
           ? "Archiving and running the full audit..."
-          : "Ready to start";
+          : "Not recording";
+
+  const consentHint = !hasConsent ? "Confirm consent before you start." : undefined;
 
   return (
     <Card.Root variant="outline" h="full">
-      <Card.Header>
+      <Card.Header pb={0}>
         <PanelHeader
-          icon={<LuFileAudio size={20} />}
           title="Meeting audio"
           subtitle="Record a live meeting or upload a recording"
           right={
-            <Badge colorPalette={archived ? "green" : "gray"} variant="subtle">
-              <LuLock />
-              {archived ? "Vault locked" : "Vault idle"}
-            </Badge>
+            archived ? (
+              <Text fontSize="sm" color="green.fg">
+                Original archived
+              </Text>
+            ) : undefined
           }
         />
       </Card.Header>
 
-      <Card.Body gap={5}>
-        <Box
-          colorPalette={hasConsent ? "green" : "orange"}
-          bg="colorPalette.subtle"
-          borderWidth="1px"
-          borderColor="colorPalette.muted"
-          borderRadius="lg"
-          p={3.5}
+      <Card.Body gap={6}>
+        <Checkbox.Root
+          checked={hasConsent}
+          disabled={locked}
+          onCheckedChange={(d) => setHasConsent(d.checked === true)}
+          alignItems="flex-start"
         >
-          <Checkbox.Root
-            checked={hasConsent}
-            disabled={locked}
-            onCheckedChange={(d) => setHasConsent(d.checked === true)}
-          >
-            <Checkbox.HiddenInput />
-            <Checkbox.Control />
-            <Checkbox.Label fontSize="sm" fontWeight="medium">
+          <Checkbox.HiddenInput />
+          <Checkbox.Control mt={0.5} />
+          <Box>
+            <Checkbox.Label fontWeight="medium">
               The client agreed to recording and automated supervisory review
             </Checkbox.Label>
-          </Checkbox.Root>
-        </Box>
+            <Text fontSize="xs" color="fg.muted" mt={0.5}>
+              Applies to one meeting. You'll confirm again next time.
+            </Text>
+          </Box>
+        </Checkbox.Root>
 
         <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} variant="line">
           <Tabs.List>
             <Tabs.Trigger value="live" disabled={busy}>
-              <LuRadio /> Live meeting
+              Live meeting
             </Tabs.Trigger>
             <Tabs.Trigger value="recorded" disabled={locked}>
-              <LuCloudUpload /> Upload recording
+              Upload recording
             </Tabs.Trigger>
           </Tabs.List>
 
-          <Tabs.Content value="live" pt={5}>
-            <VStack align="stretch" gap={4}>
+          <Tabs.Content value="live" pt={6}>
+            <VStack align="stretch" gap={6}>
               <Field.Root required>
                 <Field.Label>Meeting title</Field.Label>
                 <Input
-                  size="sm"
-                  placeholder="e.g. Annual review"
+                  placeholder="Annual review"
                   value={liveTitle}
                   onChange={(e) => setLiveTitle(e.target.value)}
                   disabled={locked}
                 />
               </Field.Root>
 
-              <Flex justify="space-between" align="center" gap={3} p={3.5} bg="bg.muted" borderRadius="lg">
-                <HStack gap={2.5}>
+              <Flex justify="space-between" align="center" gap={4}>
+                <HStack gap={3}>
                   <Box
-                    boxSize={2.5}
+                    boxSize={2}
                     borderRadius="full"
-                    bg={meeting.status === "live" ? "red.solid" : "fg.subtle"}
+                    bg={meeting.status === "live" ? "red.solid" : "border.emphasized"}
                     animationName={meeting.status === "live" ? "pulse" : undefined}
                     animationDuration="1.5s"
                     animationIterationCount="infinite"
                   />
-                  <Text fontSize="sm" fontWeight="medium" fontVariantNumeric="tabular-nums">
-                    {statusLabel}
-                  </Text>
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" fontVariantNumeric="tabular-nums">
+                      {statusLabel}
+                    </Text>
+                    {meeting.status === "idle" && consentHint && (
+                      <Text fontSize="xs" color="fg.muted">
+                        {consentHint}
+                      </Text>
+                    )}
+                  </Box>
                 </HStack>
 
                 {inSession ? (
                   <Button size="sm" colorPalette="red" onClick={meeting.stop} loading={meeting.status === "analyzing"}>
-                    <LuSquare /> End meeting
+                    End meeting
                   </Button>
                 ) : (
                   <Button
                     size="sm"
-                    colorPalette="blue"
                     onClick={startMeeting}
                     loading={meeting.status === "connecting"}
                     disabled={!hasConsent || !liveTitle.trim() || locked}
                   >
-                    <LuMic /> Start meeting
+                    Start meeting
                   </Button>
                 )}
               </Flex>
-
-              {meeting.alerts.length > 0 && (
-                <VStack align="stretch" gap={2} aria-live="polite">
-                  {[...meeting.alerts].reverse().map((alert) => (
-                    <Alert.Root key={`${alert.ruleId}-${alert.shownAt}`} status="warning" variant="subtle" size="sm">
-                      <Alert.Indicator />
-                      <Alert.Content>
-                        <Alert.Title>{alert.nudge}</Alert.Title>
-                        <Alert.Description color="fg.muted">
-                          {alert.ruleId} at {formatTime(alert.timestampSeconds)}: "{alert.quote}"
-                        </Alert.Description>
-                      </Alert.Content>
-                    </Alert.Root>
-                  ))}
-                </VStack>
-              )}
-
-              <Box
-                ref={feedRef}
-                h="240px"
-                overflowY="auto"
-                p={3.5}
-                bg="bg.muted"
-                borderWidth="1px"
-                borderRadius="lg"
-                fontFamily="mono"
-                fontSize="xs"
-                lineHeight="tall"
-              >
-                {meeting.captions.length === 0 ? (
-                  <Text color="fg.muted" fontStyle="italic" textAlign="center" py={16} fontFamily="body">
-                    {meeting.status === "live"
-                      ? "Listening. Lines appear a moment after each person finishes speaking."
-                      : "The redacted transcript appears here during the meeting."}
-                  </Text>
-                ) : (
-                  meeting.captions.map((caption) => (
-                    <Text key={caption.id} mb={2}>
-                      <Span fontWeight="bold" color="blue.fg">
-                        [{caption.timestamp}] {caption.speaker}:
-                      </Span>{" "}
-                      {caption.text}
-                    </Text>
-                  ))
-                )}
-              </Box>
 
               {meeting.status === "analyzing" && (
                 <Progress.Root value={null} size="xs">
@@ -357,16 +313,65 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
                   </Progress.Track>
                 </Progress.Root>
               )}
+
+              {meeting.alerts.length > 0 && (
+                <VStack align="stretch" gap={3} aria-live="polite">
+                  {[...meeting.alerts].reverse().map((alert) => (
+                    <Box
+                      key={`${alert.ruleId}-${alert.shownAt}`}
+                      colorPalette="orange"
+                      borderLeftWidth="3px"
+                      borderLeftColor="colorPalette.solid"
+                      pl={3}
+                      py={0.5}
+                    >
+                      <Text fontSize="sm" fontWeight="medium">
+                        {alert.nudge}
+                      </Text>
+                      <Text fontSize="xs" color="fg.muted" mt={0.5}>
+                        {alert.ruleId} at {formatTime(alert.timestampSeconds)}: "{alert.quote}"
+                      </Text>
+                    </Box>
+                  ))}
+                </VStack>
+              )}
+
+              <Box
+                ref={feedRef}
+                h="260px"
+                overflowY="auto"
+                borderTopWidth="1px"
+                borderBottomWidth="1px"
+                py={4}
+                fontSize="sm"
+                lineHeight="tall"
+              >
+                {meeting.captions.length === 0 ? (
+                  <Text color="fg.muted" textAlign="center" pt={20}>
+                    {meeting.status === "live"
+                      ? "Listening. Lines appear a moment after each person finishes speaking."
+                      : "The redacted transcript appears here during the meeting."}
+                  </Text>
+                ) : (
+                  meeting.captions.map((caption) => (
+                    <Box key={caption.id} mb={3}>
+                      <Text fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
+                        {caption.timestamp} <Span fontWeight="medium" color="fg">{caption.speaker}</Span>
+                      </Text>
+                      <Text>{caption.text}</Text>
+                    </Box>
+                  ))
+                )}
+              </Box>
             </VStack>
           </Tabs.Content>
 
-          <Tabs.Content value="recorded" pt={5}>
-            <VStack align="stretch" gap={4}>
+          <Tabs.Content value="recorded" pt={6}>
+            <VStack align="stretch" gap={6}>
               <Field.Root>
                 <Field.Label>Meeting title</Field.Label>
                 <Input
-                  size="sm"
-                  placeholder="e.g. Annual review"
+                  placeholder="Annual review"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   disabled={busy}
@@ -385,13 +390,13 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
                 }}
               >
                 <FileUpload.HiddenInput />
-                <FileUpload.Dropzone w="full">
+                <FileUpload.Dropzone w="full" py={8}>
                   <Icon size="lg" color="fg.muted">
                     <LuCloudUpload />
                   </Icon>
                   <FileUpload.DropzoneContent>
                     <Box>Drop a recording here or click to browse</Box>
-                    <Box color="fg.muted">MP3, WAV, M4A, FLAC, OGG or WebM</Box>
+                    <Box color="fg.muted">MP3, WAV, M4A, FLAC, OGG, or WebM</Box>
                   </FileUpload.DropzoneContent>
                 </FileUpload.Dropzone>
                 <FileUpload.List clearable />
@@ -411,17 +416,21 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
               )}
 
               {phase === "processing" && (
-                <VStack align="stretch" gap={2} p={3.5} bg="bg.muted" borderRadius="lg" aria-live="polite">
+                <VStack align="stretch" gap={2.5} aria-live="polite">
                   {STAGES.map(({ stage: s, label }, i) => {
                     const current = STAGES.findIndex((x) => x.stage === stage);
                     return (
                       <HStack key={s} gap={2.5} color={i > current ? "fg.subtle" : undefined}>
                         {i < current ? (
-                          <Icon color="green.fg"><LuCircleCheck /></Icon>
+                          <Icon color="green.fg">
+                            <LuCircleCheck />
+                          </Icon>
                         ) : i === current ? (
                           <Spinner size="xs" />
                         ) : (
-                          <Icon><LuCircle /></Icon>
+                          <Icon>
+                            <LuCircle />
+                          </Icon>
                         )}
                         <Text fontSize="sm">{label}</Text>
                       </HStack>
@@ -432,7 +441,7 @@ export const TranscribeWorkspace: React.FC<Props> = ({ user, onAuditComplete, on
 
               <Button
                 size="sm"
-                colorPalette="blue"
+                alignSelf="flex-start"
                 onClick={submitBatch}
                 disabled={!file || !hasConsent || busy}
                 loading={busy}
