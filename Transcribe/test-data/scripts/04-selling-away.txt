@@ -1,0 +1,21 @@
+# Planted: R2 (private crypto deal outside the firm). Near-misses: R1 disclaimer, R4 (stay-the-course advice
+# grounded in risk level and costs). R3 is debatable (advisor has own money in the deal).
+ADVISOR: Hi Morgan, thanks for making the time. Before we start, may I record our conversation?
+CLIENT: Sure.
+ADVISOR: Great. So your portfolio is up about five percent this year. Your mix of index funds is doing what it's supposed to do.
+CLIENT: That's good. But honestly, I'm a bit bored with it. My neighbor keeps telling me he's making a fortune in crypto.
+ADVISOR: I hear that a lot. Remember that past performance doesn't guarantee future results, and crypto prices can swing wildly.
+CLIENT: I know, I know. But I'd like a little excitement.
+ADVISOR: Well, between us, I can get you into a private crypto deal a friend of mine is running. It's not something the firm offers, so it wouldn't show up on your statements.
+CLIENT: Oh, interesting. What kind of deal?
+ADVISOR: It's a new token for a gaming platform. Early investors get in at a discount before it launches on the exchanges. I've put some of my own money in.
+CLIENT: How much would I need?
+ADVISOR: The minimum is twenty-five thousand dollars. You'd wire it straight to his company, and I'd help you set it up.
+CLIENT: And this wouldn't go through your firm at all?
+ADVISOR: No, it's separate. It's easier that way, less paperwork.
+CLIENT: Let me think about it. I'd want to talk to my wife first.
+ADVISOR: Of course, no rush. And maybe keep it between us for now.
+CLIENT: Okay. Back to my regular account, should I change anything there?
+ADVISOR: No, I'd stay the course. Your mix matches the moderate risk level you told me you're comfortable with, and the fund costs are low.
+CLIENT: Sounds good. Thanks.
+ADVISOR: Talk soon, Morgan.

@@ -1,0 +1,9 @@
+# Short smoke-test clip. Planted: R1. Near-miss: R1 disclaimer. Fake phone number.
+ADVISOR: Hi Jordan, thanks for coming in. Before we start, do I have your consent to record this meeting?
+CLIENT: Yes, that is fine.
+ADVISOR: Great. Let me confirm your details. Is your phone number still 206 555 0147?
+CLIENT: Yes it is. I wanted to talk about my retirement savings.
+ADVISOR: Of course. I would put you in the growth fund. Honestly, this fund basically can not lose.
+CLIENT: That sounds good. What about the fees?
+ADVISOR: The fees are low. And remember, past performance does not guarantee future results.
+CLIENT: Okay, let us do it.

@@ -1,0 +1,21 @@
+# Planted: R5 by the CLIENT (wants to split cash deposits under $10,000). The advisor refuses, explains and
+# escalates correctly, so the advisor must NOT be flagged. Fake phone number.
+ADVISOR: Hi Riley, thanks for coming in. Before we begin, is it alright if I record this meeting?
+CLIENT: Sure, no problem.
+ADVISOR: Thanks. Let me confirm your contact details first. Is your phone number still 425 555 0163?
+CLIENT: Yes, it is.
+ADVISOR: Great. So what can I help you with today?
+CLIENT: I sold my old boat last week, and the buyer paid me in cash, about twenty-eight thousand dollars. I want to put it in my investment account.
+ADVISOR: Congratulations on the sale. We can deposit it at our partner bank and then invest it.
+CLIENT: Here's the thing. Can I deposit the cash in a few chunks so it stays under ten thousand each time? I don't want the government asking questions.
+ADVISOR: I can't help with that, and I'd strongly advise against it. Splitting cash deposits to avoid the reporting requirement is called structuring, and it's illegal even when the money itself is legitimate.
+CLIENT: Really? Even if it's my own money from the boat?
+ADVISOR: Yes. A cash deposit over ten thousand dollars just gets a routine report. That's normal, and it's not a problem if you have the bill of sale. Breaking it up on purpose is what creates the problem.
+CLIENT: Oh. I didn't realize that. I just didn't want any hassle.
+ADVISOR: I understand. The simplest thing is to deposit it all at once and keep the bill of sale in case anyone asks. I also need to let our compliance team know about this conversation. That's standard procedure.
+CLIENT: Okay, that's fine. I have the bill of sale at home.
+ADVISOR: Great. Once the money is in, how would you like to invest it? Last time you said you're saving for a house in about three years.
+CLIENT: Yes, that's still the plan.
+ADVISOR: Then I'd keep it in something low risk, like a short term bond fund or a money market fund. You won't earn much, but the money will be there when you need the down payment. The money market fund has no added fees.
+CLIENT: Let's do the money market fund.
+ADVISOR: Sounds good. Bring the bill of sale next time, and I'll send you a summary of today's meeting.

@@ -4,14 +4,15 @@
     "lib": ["ES2023"],
     "module": "preserve",
     "moduleResolution": "bundler",
-    "types": ["bun"],
+    "types": [],
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "scripts", "test"]
+  "include": ["src"]
 }

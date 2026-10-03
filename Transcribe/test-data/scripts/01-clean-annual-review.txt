@@ -1,0 +1,22 @@
+# Clean. Near-misses: R1 disclaimer, R1 FDIC-insured CD. Fake address and phone number.
+ADVISOR: Good morning, Jordan, thanks for coming in today. Before we get started, do I have your consent to record this meeting for our records?
+CLIENT: Yes, that's fine with me.
+ADVISOR: Thank you. First, let me make sure your contact details are current. Do you still live at 418 Maple Street in Tacoma, and is your phone number still 253 555 0192?
+CLIENT: Yes, same address and same number.
+ADVISOR: Great. So this is our annual review. Last year you told me your main goal was retiring around age sixty-five. Is that still the plan?
+CLIENT: It is. Maybe a little earlier if things go well, but sixty-five is realistic.
+ADVISOR: Good. And when we talked about risk, you said you were comfortable with moderate ups and downs, but you didn't want to lose sleep over the market. Has that changed?
+CLIENT: Not really. The dip last spring made me a bit nervous, honestly.
+ADVISOR: That's completely understandable. Your portfolio is about sixty percent stock funds and forty percent bonds. During the dip it fell about seven percent, then it recovered by the fall.
+CLIENT: That's good to hear. The balanced fund did really well last year, didn't it? Should I put more into it?
+ADVISOR: It returned about eleven percent last year. But past performance doesn't guarantee future results, and I wouldn't move money just because of one good year. Adding more would push you above your target for stocks.
+CLIENT: Okay, that makes sense. What about the cash in my savings account? It's about twenty thousand dollars.
+ADVISOR: One option is a twelve month certificate of deposit through the firm's bank partner. The CD is FDIC insured up to the limit, so your principal is protected, but the rate is lower than what the bond fund might earn over time.
+CLIENT: What would the fees be on each option?
+ADVISOR: The CD has no fee, but there's a penalty if you withdraw early. The bond fund costs about zero point four percent a year, plus our advisory fee of one percent on the account. I'll send you the fee schedule in writing.
+CLIENT: I think I'd like to keep about half in cash for emergencies, and put the rest in the CD.
+ADVISOR: That fits your goals well. Keeping an emergency fund is sensible, and the CD gives you a bit more interest without adding market risk. Would you like to take a few days to think it over?
+CLIENT: No, I'm comfortable with that. Let's go ahead.
+ADVISOR: Sounds good. I'll prepare the paperwork for the CD and email you the fee schedule and a summary of today's meeting. We'll check in again in six months.
+CLIENT: Perfect. Thanks for walking me through everything.
+ADVISOR: My pleasure. Take care, Jordan.

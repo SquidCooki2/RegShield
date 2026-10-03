@@ -1,0 +1,60 @@
+{
+  "_readme": "Per recording: expected = issues that must be flagged (rule + who said it); acceptable = debatable flags that should not count as false alarms; nearMisses = lines that must NOT be flagged under that rule. Quotes are the script wording; Transcribe may change them slightly.",
+  "demo-guarantee": {
+    "expected": [{ "ruleId": "R1", "speakerRole": "advisor", "quote": "Honestly, this fund basically can not lose." }],
+    "acceptable": [{ "ruleId": "R4", "reason": "Growth fund recommended with no discussion of goals or risk (short clip)." }],
+    "nearMisses": [{ "ruleId": "R1", "quote": "past performance does not guarantee future results" }]
+  },
+  "01-clean-annual-review": {
+    "expected": [],
+    "acceptable": [],
+    "nearMisses": [
+      { "ruleId": "R1", "quote": "past performance doesn't guarantee future results" },
+      { "ruleId": "R1", "quote": "The CD is FDIC insured up to the limit" }
+    ]
+  },
+  "02-clean-rollover": {
+    "expected": [],
+    "acceptable": [],
+    "nearMisses": [
+      { "ruleId": "R4", "quote": "I want to go through all of them before recommending anything" },
+      { "ruleId": "R2", "quote": "I also have some bitcoin in a Coinbase account" },
+      { "ruleId": "R3", "quote": "It's just a volunteer thing, for fun." },
+      { "ruleId": "R5", "quote": "I'm moving my savings from my other bank into my checking account here" }
+    ]
+  },
+  "03-guarantee-pressure": {
+    "expected": [
+      { "ruleId": "R1", "speakerRole": "advisor", "quote": "You're guaranteed to make at least eight percent a year, no matter what the market does." },
+      { "ruleId": "R4", "speakerRole": "advisor", "quote": "Just sign today, and we'll go over the details later." }
+    ],
+    "acceptable": [],
+    "nearMisses": []
+  },
+  "04-selling-away": {
+    "expected": [{ "ruleId": "R2", "speakerRole": "advisor", "quote": "I can get you into a private crypto deal a friend of mine is running." }],
+    "acceptable": [{ "ruleId": "R3", "reason": "Advisor has own money in the outside deal and offers to set it up." }],
+    "nearMisses": [
+      { "ruleId": "R1", "quote": "past performance doesn't guarantee future results" },
+      { "ruleId": "R4", "quote": "Your mix matches the moderate risk level you told me you're comfortable with" }
+    ]
+  },
+  "05-outside-business": {
+    "expected": [{ "ruleId": "R3", "speakerRole": "advisor", "quote": "I also run a tax preparation business on the side" }],
+    "acceptable": [],
+    "nearMisses": [{ "ruleId": "R4", "quote": "I'd suggest a target date fund" }]
+  },
+  "06-client-structuring": {
+    "expected": [{ "ruleId": "R5", "speakerRole": "client", "quote": "Can I deposit the cash in a few chunks so it stays under ten thousand each time?" }],
+    "acceptable": [],
+    "nearMisses": [{ "ruleId": "R5", "quote": "Splitting cash deposits to avoid the reporting requirement is called structuring" }]
+  },
+  "07-advisor-structuring": {
+    "expected": [
+      { "ruleId": "R5", "speakerRole": "advisor", "quote": "Deposit it in a few chunks, maybe nine thousand at a time over a couple of weeks." },
+      { "ruleId": "R4", "speakerRole": "advisor", "quote": "I need your signature today so we can get it moving before the end of the quarter." }
+    ],
+    "acceptable": [],
+    "nearMisses": []
+  }
+}

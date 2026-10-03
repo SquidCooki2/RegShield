@@ -1,0 +1,25 @@
+# Clean. Near-misses: R4 (rollover with goals, risk, costs and alternatives), R2 (client's own crypto),
+# R3 (unpaid volunteer coaching), R5 (ordinary transfer with a clear explanation).
+ADVISOR: Hi Sam, good to see you. Before we begin, is it okay if I record this meeting?
+CLIENT: Sure, go ahead.
+ADVISOR: Thanks. You mentioned on the phone that you just left your job and want to talk about your old four oh one k.
+CLIENT: Right. I have about a hundred and eighty thousand dollars in my old employer's plan, and I'm not sure what to do with it.
+ADVISOR: There are a few options, and I want to go through all of them before recommending anything. You can leave it in the old plan, move it to your new employer's plan, roll it into an IRA, or cash it out, though cashing out means taxes and probably a penalty.
+CLIENT: I definitely don't want to cash it out.
+ADVISOR: Good. Before we compare the others, tell me what you want this money to do. When do you expect to need it?
+CLIENT: Not for at least twenty years. I'm forty-two.
+ADVISOR: And how would you feel if the account dropped twenty percent in a bad year?
+CLIENT: I wouldn't love it, but I wouldn't panic. I know it's long term.
+ADVISOR: Okay. Your old plan has low cost index funds, about zero point one percent a year. An IRA with us would give you more investment choices, but with our advisory fee it would cost about one percent a year. That's a real difference over twenty years.
+CLIENT: Hmm. What does my new employer's plan look like?
+ADVISOR: I'd need to see their fund list and fees. Could you bring that next time? Then we can compare all three side by side.
+CLIENT: Sure. By the way, I also have some bitcoin in a Coinbase account that I bought a few years ago. Does that matter?
+ADVISOR: It's good to know about, since it's part of your overall picture. We don't need to change it. I'll note it so we account for it when we look at your total risk.
+CLIENT: Okay. And I'm moving my savings from my other bank into my checking account here, about fifteen thousand dollars. Is that a problem?
+ADVISOR: Not at all. That's an ordinary transfer between your own accounts.
+CLIENT: Great. One more thing, are you still coaching your daughter's soccer team? My son wants to join.
+ADVISOR: I am! It's just a volunteer thing, for fun. I'll send you the signup link.
+CLIENT: Thanks. So what's the next step on the four oh one k?
+ADVISOR: Bring the new plan's fee sheet, and I'll put together a written comparison of all three options with the costs. There's no rush. Your money is fine where it is for now.
+CLIENT: Sounds good.
+ADVISOR: Great. I'll email you a summary of what we discussed today. Talk soon, Sam.

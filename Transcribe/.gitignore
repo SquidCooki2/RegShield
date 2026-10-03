@@ -27,3 +27,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local Claude/project notes
+CLAUDE.md
+project.info
+AGENT_CONTEXT.md
+DESIGN_DECISIONS.md

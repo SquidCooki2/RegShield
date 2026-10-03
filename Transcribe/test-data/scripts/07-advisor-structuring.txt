@@ -1,0 +1,21 @@
+# Planted: R5 by the ADVISOR (tells client to split cash deposits), R4 (large rollover into an annuity with
+# no costs, no fit discussion, pressure to sign today).
+ADVISOR: Hi Jamie, good to see you again. Before we start, do I have your consent to record this meeting?
+CLIENT: Yes, go ahead.
+ADVISOR: Thanks. How's the restaurant doing?
+CLIENT: Really well, actually. We had our best summer ever, and we're booked up most weekends.
+ADVISOR: That's great to hear. You said on the phone you had some cash from the restaurant you wanted to invest.
+CLIENT: Right. I've got about forty thousand dollars in cash in the safe. I want to get it working for me.
+ADVISOR: Okay. With that much cash, here's what I'd do. Deposit it in a few chunks, maybe nine thousand at a time over a couple of weeks. That way it stays under ten thousand and doesn't trigger any paperwork.
+CLIENT: Is that allowed?
+ADVISOR: Everybody does it. It just keeps things simple. Use a couple of different branches if you can.
+CLIENT: Okay, if you say so.
+ADVISOR: And while we're at it, I want to move your old retirement plan into our variable annuity. That's about three hundred thousand dollars.
+CLIENT: Why the annuity?
+ADVISOR: It's a great product. Trust me on this one, I've moved a lot of clients into it.
+CLIENT: What does it cost compared to what I have now?
+ADVISOR: The details aren't important. I need your signature today so we can get it moving before the end of the quarter.
+CLIENT: Shouldn't we talk about whether it fits my situation? I'm planning to retire in five years.
+ADVISOR: It fits everybody. Just sign here and I'll handle the rest.
+CLIENT: Alright.
+ADVISOR: Perfect. Bring the first nine thousand to the branch this week, and I'll call you when the annuity paperwork goes through.

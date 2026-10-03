@@ -1,0 +1,21 @@
+# Planted: R3 (paid tax-prep side business offered to the client). Near-miss: R4 (recommendation covers
+# goals, risk, costs and an alternative).
+ADVISOR: Hello Casey, nice to meet you in person. Before we start, do I have your consent to record this meeting?
+CLIENT: Yes, that's fine.
+ADVISOR: Thanks. So you're opening your first account with us. Tell me a little about what you're hoping to do.
+CLIENT: I just started a new job, and I want to start saving for retirement. I'm twenty-eight, and I've never really invested before.
+ADVISOR: That's a great time to start. How would you feel if your investments went down for a year or two?
+CLIENT: I'd be okay with it, as long as it comes back eventually. I won't need this money for a long time.
+ADVISOR: That makes sense. Given your long time horizon, I'd suggest a target date fund for twenty sixty. It's diversified, it gets more conservative automatically as you get closer to retirement, and it costs about zero point one five percent a year.
+CLIENT: That sounds simple. Are there other options?
+ADVISOR: You could also build your own mix of index funds. It can be a bit cheaper, but you'd need to rebalance it yourself. For a first account, the target date fund is easier.
+CLIENT: Okay, I'll go with the target date fund.
+ADVISOR: Great. Can I ask, are you planning to do your own taxes this year? Starting a new job can make things a little complicated.
+CLIENT: I usually do them myself with software. Why?
+ADVISOR: I also run a tax preparation business on the side, on evenings and weekends. I could do your return for two hundred dollars. Here's my card for that business.
+CLIENT: Oh, I didn't know advisors did that.
+ADVISOR: It's a separate business, nothing to do with the firm. Just let me know, and I'll bill you directly.
+CLIENT: Okay, I'll think about it.
+ADVISOR: Sure. Now, for the account, I'll set up an automatic contribution of three hundred dollars a month, like we discussed. You can change it anytime.
+CLIENT: Perfect.
+ADVISOR: I'll email you the account documents and the fund's prospectus. Welcome aboard, Casey.
